@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>About Messages for Linux</title>
+<style>
+  :root {
+    --bg: #16171a;
+    --fg: #e8eaed;
+    --muted: #9aa0a6;
+    --accent: #8ab4f8;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-user-select: none; user-select: none;
+    overflow: hidden;
+  }
+  .wrap {
+    height: 100%;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: space-between;
+    padding: 24px 26px 18px;
+    text-align: center;
+  }
+
+  /* ---- verse ---- */
+  .verse {
+    font-size: 12.5px; line-height: 1.55; font-style: italic;
+    color: var(--muted); max-width: 340px;
+  }
+  .verse .ref {
+    display: block; margin-top: 5px;
+    font-style: normal; font-size: 11px; letter-spacing: .04em;
+    color: #6f757c;
+  }
+
+  /* ---- avatar ---- */
+  .avatar {
+    width: 132px; height: 132px; border-radius: 10px;
+    object-fit: cover; display: block; margin: 0 auto;
+    border: 1px solid rgba(138,180,248,.45);
+    box-shadow: 0 0 0 4px rgba(138,180,248,.08), 0 6px 20px rgba(0,0,0,.6);
+  }
+
+  /* ---- credit ---- */
+  .credit {
+    font-size: 16px; font-weight: 600; letter-spacing: .02em;
+    color: var(--accent); margin-top: 15px;
+  }
+  .credit .studio {
+    display: block; margin-top: 7px;
+    font-size: 11.5px; font-weight: 500; letter-spacing: .05em;
+    color: var(--muted);
+  }
+  .credit .lead {
+    display: block; font-size: 10.5px; font-weight: 400;
+    letter-spacing: .16em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 5px;
+  }
+
+  /* ---- footer ---- */
+  .app { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .meta { font-size: 10.5px; color: var(--muted); line-height: 1.5; }
+  .legal { font-size: 9.5px; color: #62676d; margin-top: 6px; line-height: 1.45; }
+
+  .btn {
+    margin-top: 14px;
+    background: var(--accent); color: #16171a;
+    border: none; border-radius: 6px;
+    padding: 7px 26px; font-size: 13px; font-weight: 600;
+    cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.08); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+
+    <div class="verse">
+      &ldquo;Whatever you do, work at it with all your heart,<br>
+      as working for the Lord.&rdquo;
+      <span class="ref">Colossians 3:23</span>
+    </div>
+
+    <div>
+      <img class="avatar" id="avatar" alt="avid">
+      <div class="credit">
+        <span class="lead">Created by</span>
+        avid &amp; calix
+        <span class="studio">avidusSoftware</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="app" id="appline">Messages for Linux</div>
+      <div class="meta" id="uin" style="opacity:.65;letter-spacing:.08em"></div>
+      <div class="meta" id="meta"></div>
+      <div class="legal">
+        Not affiliated with, endorsed by, or sponsored by Google.<br>
+        Google and Google Messages are trademarks of Google LLC.
+      </div>
+      <button class="btn" id="ok">OK</button>
+    </div>
+
+  </div>
+
+<script>
+  // Populated by the main process through the aboutAPI bridge.
+  window.aboutAPI.getInfo().then((info) => {
+    document.getElementById('avatar').src = info.avatarUrl;
+    document.getElementById('appline').textContent = 'Messages for Linux v' + info.version;
+    document.getElementById('meta').textContent =
+      'Electron ' + info.electron + '  \u00B7  Chromium ' + info.chrome;
+    // #27 ICQ-style UIN — minted once per install, purely for the nostalgia
+    if (info.uin) {
+      const el = document.getElementById('uin');
+      if (el) el.textContent = 'UIN ' + info.uin;
+    }
+  });
+
+  const close = () => window.aboutAPI.close();
+  document.getElementById('ok').onclick = close;
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || e.key === 'Enter') close();
+  });
+</script>
+</body>
+</html>

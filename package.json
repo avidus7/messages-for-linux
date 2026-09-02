@@ -1,0 +1,106 @@
+{
+  "name": "messages-for-linux",
+  "productName": "Messages for Linux",
+  "version": "1.4.0",
+  "description": "An unofficial Google Messages desktop app for Linux, by avidusSoftware. Not affiliated with Google.",
+  "main": "main.js",
+  "author": "avidusSoftware",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --linux AppImage deb",
+    "dist:appimage": "electron-builder --linux AppImage",
+    "dist:deb": "electron-builder --linux deb"
+  },
+  "build": {
+    "appId": "com.avidussoftware.messagesforlinux",
+    "productName": "Messages for Linux",
+    "copyright": "avidusSoftware",
+    "files": [
+      "main.js",
+      "menu.js",
+      "settings.js",
+      "preload.js",
+      "findbar-preload.js",
+      "about.html",
+      "about-preload.js",
+      "findbar.html",
+      "error.html",
+      "cracktro-preload.js",
+      "cracktro.html",
+      "camouflage.html",
+      "audio-preload.js",
+      "audio.html",
+      "selftest.js",
+      "lock-preload.js",
+      "lock.html",
+      "assets/**/*",
+      "!dist/**",
+      "!bisect.js",
+      "!vanilla-test.js",
+      "!install.sh",
+      "!**/*.md"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network;InstantMessaging",
+      "icon": "assets/icon-512.png",
+      "synopsis": "Unofficial Google Messages desktop app",
+      "description": "An unofficial desktop app for Google Messages on Linux, by avidusSoftware. Not affiliated with, endorsed by, or sponsored by Google.",
+      "maintainer": "avidusSoftware <noreply@example.com>",
+      "desktop": {
+        "entry": {
+          "Name": "Messages for Linux",
+          "GenericName": "Google Messages",
+          "Keywords": "SMS;RCS;Messages;Text;Android;",
+          "StartupWMClass": "messages for linux"
+        }
+      }
+    },
+    "appImage": {
+      "artifactName": "Messages-for-Linux-${version}-x86_64.AppImage"
+    },
+    "deb": {
+      "artifactName": "messages-for-linux_${version}_amd64.deb",
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libsecret-1-0"
+      ]
+    },
+    "asarUnpack": [
+      "assets/**"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "avidus7",
+      "repo": "messages-for-linux"
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": false,
+      "artifactName": "Messages-for-Linux-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "Messages for Linux"
+    }
+  },
+  "devDependencies": {
+    "electron": "44.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "homepage": "https://github.com/avidus7/messages-for-linux",
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  }
+}

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+<title>Locked</title>
+<style>
+  :root {
+    --bg: #0a0e0b;
+    --glow: #33ff66;
+    --dim: #1c3322;
+    --text: #cdeed6;
+    --bad: #ff5555;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 18px 20px 22px;
+    background: var(--bg); color: var(--text);
+    font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+    user-select: none;
+    /* faint scanlines, same soul as the icons */
+    background-image: repeating-linear-gradient(
+      to bottom, rgba(0,0,0,0) 0 3px, rgba(0,0,0,.35) 3px 5px);
+  }
+  h1 {
+    font-size: 13px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--glow); text-align: center; margin: 2px 0 4px;
+    text-shadow: 0 0 8px rgba(51,255,102,.6);
+  }
+  .sub { text-align: center; font-size: 11px; color: #6f8f7b; margin-bottom: 14px; }
+  .dots { display: flex; justify-content: center; gap: 12px; margin: 6px 0 14px; height: 18px; }
+  .dot {
+    width: 13px; height: 13px; border-radius: 50%;
+    border: 2px solid var(--dim); background: transparent;
+  }
+  .dot.on { background: var(--glow); border-color: var(--glow); box-shadow: 0 0 9px rgba(51,255,102,.75); }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+  button {
+    font-family: inherit; font-size: 19px; padding: 13px 0;
+    color: var(--text); background: #101a13;
+    border: 1px solid var(--dim); border-radius: 7px; cursor: pointer;
+  }
+  button:hover { border-color: var(--glow); color: var(--glow); }
+  button:active { background: #16281c; }
+  button.wide { grid-column: span 3; font-size: 13px; letter-spacing: .12em; padding: 11px 0; }
+  button.ghost { color: #6f8f7b; }
+  .msg { text-align: center; font-size: 11px; min-height: 15px; margin: 11px 0 4px; }
+  .msg.err { color: var(--bad); }
+  .msg.ok { color: var(--glow); }
+</style>
+</head>
+<body>
+  <h1 id="title">Locked</h1>
+  <div class="sub" id="sub">Messages for Linux</div>
+
+  <div class="dots" id="dots"></div>
+
+  <div class="pad">
+    <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+    <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+    <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+    <button class="ghost" id="del">&#9003;</button>
+    <button data-k="0">0</button>
+    <button class="ghost" id="clear">CLR</button>
+    <button class="wide" id="go">ENTER</button>
+  </div>
+
+  <div class="msg" id="msg"></div>
+
+<script>
+  (function () {
+    var pin = '', mode = 'unlock', busy = false;
+    var dots = document.getElementById('dots');
+    var msg = document.getElementById('msg');
+
+    function draw() {
+      dots.innerHTML = '';
+      var n = Math.max(4, pin.length);
+      for (var i = 0; i < n; i++) {
+        var d = document.createElement('div');
+        d.className = 'dot' + (i < pin.length ? ' on' : '');
+        dots.appendChild(d);
+      }
+    }
+    function say(text, cls) { msg.textContent = text || ''; msg.className = 'msg' + (cls ? ' ' + cls : ''); }
+    function push(k) { if (pin.length < 12) { pin += k; say(''); draw(); } }
+
+    async function submit() {
+      if (busy) return;
+      if (pin.length < 4) { say('Use at least 4 digits.', 'err'); return; }
+      busy = true;
+      try {
+        var res = await window.lockAPI.submit(pin);
+        if (res && res.ok) {
+          say(res.message || 'OK', 'ok');
+          setTimeout(function () { window.lockAPI.done(mode === 'unlock'); }, 320);
+          return;
+        }
+        say((res && res.message) || 'Wrong PIN.', 'err');
+        pin = ''; draw();
+      } catch (e) {
+        say('Something went wrong.', 'err');
+      }
+      busy = false;
+    }
+
+    document.querySelectorAll('button[data-k]').forEach(function (b) {
+      b.addEventListener('click', function () { push(b.getAttribute('data-k')); });
+    });
+    document.getElementById('del').addEventListener('click', function () { pin = pin.slice(0, -1); draw(); });
+    document.getElementById('clear').addEventListener('click', function () { pin = ''; say(''); draw(); });
+    document.getElementById('go').addEventListener('click', submit);
+
+    window.addEventListener('keydown', function (e) {
+      if (e.key >= '0' && e.key <= '9') push(e.key);
+      else if (e.key === 'Backspace') { pin = pin.slice(0, -1); draw(); }
+      else if (e.key === 'Enter') submit();
+      else if (e.key === 'Escape' && mode === 'set') window.lockAPI.done(false);
+    });
+
+    window.lockAPI.getMode().then(function (info) {
+      mode = (info && info.mode) || 'unlock';
+      if (mode === 'set') {
+        document.getElementById('title').textContent = 'Set PIN';
+        document.getElementById('sub').textContent = 'At least 4 digits. Esc to cancel.';
+      }
+      draw();
+    }).catch(function () { draw(); });
+  })();
+</script>
+</body>
+</html>

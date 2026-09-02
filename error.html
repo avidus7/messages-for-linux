@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Messages (Avid)</title>
+<style>
+  html, body {
+    height: 100%; margin: 0;
+    font-family: system-ui, -apple-system, sans-serif;
+    background: #202124; color: #e8eaed;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card { text-align: center; max-width: 420px; padding: 24px; }
+  h1 { font-size: 20px; font-weight: 500; margin: 0 0 8px; }
+  p { color: #9aa0a6; line-height: 1.5; margin: 0 0 20px; }
+  button {
+    background: #8ab4f8; color: #202124; border: none; border-radius: 6px;
+    padding: 10px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.08); }
+  .dot { font-size: 40px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="dot">&#128268;</div>
+    <h1>Can't reach Google Messages</h1>
+    <p>No connection to messages.google.com right now. Check your internet, then try again.</p>
+    <button onclick="location.href='https://messages.google.com/web/'">Retry</button>
+  </div>
+</body>
+</html>

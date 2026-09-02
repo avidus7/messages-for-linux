@@ -1,0 +1,40 @@
+# Builds and publishes releases when you push a version tag:
+#
+#   git tag v1.0.0
+#   git push origin v1.0.0
+#
+# Linux (AppImage + deb) builds on Ubuntu; the Windows installer builds on
+# a real Windows runner. Artifacts attach to a GitHub Release automatically,
+# including the update-feed files (latest-linux.yml / latest.yml) that the
+# app's auto-updater reads.
+name: build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npx electron-builder --linux AppImage deb --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npx electron-builder --win nsis --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

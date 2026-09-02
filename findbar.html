@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body {
+    margin: 0; padding: 0; overflow: hidden;
+    font-family: system-ui, -apple-system, sans-serif; font-size: 13px;
+    background: #202124; color: #e8eaed;
+  }
+  #bar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; }
+  input {
+    flex: 1; min-width: 0; padding: 5px 8px; border-radius: 4px;
+    border: 1px solid #5f6368; background: #303134; color: #e8eaed; outline: none;
+  }
+  input:focus { border-color: #8ab4f8; }
+  #count { color: #9aa0a6; min-width: 46px; text-align: center; }
+  button {
+    border: none; background: transparent; color: #e8eaed; cursor: pointer;
+    font-size: 14px; padding: 4px 7px; border-radius: 4px;
+  }
+  button:hover { background: #3c4043; }
+</style>
+</head>
+<body>
+  <div id="bar">
+    <input id="q" type="text" placeholder="Find in page" autofocus>
+    <span id="count"></span>
+    <button id="prev" title="Previous (Shift+Enter)">&#9650;</button>
+    <button id="next" title="Next (Enter)">&#9660;</button>
+    <button id="close" title="Close (Esc)">&#10005;</button>
+  </div>
+<script>
+  const q = document.getElementById('q');
+  const count = document.getElementById('count');
+
+  function find(forward, findNext) {
+    const text = q.value;
+    if (!text) { count.textContent = ''; window.findAPI.stop(); return; }
+    window.findAPI.start(text, forward, findNext);
+  }
+
+  q.addEventListener('input', () => find(true, false));
+  q.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') find(!e.shiftKey, true);
+    if (e.key === 'Escape') window.findAPI.close();
+  });
+  document.getElementById('next').onclick = () => find(true, true);
+  document.getElementById('prev').onclick = () => find(false, true);
+  document.getElementById('close').onclick = () => window.findAPI.close();
+
+  window.findAPI.onResult(({ active, total }) => {
+    count.textContent = total ? `${active}/${total}` : (q.value ? '0/0' : '');
+  });
+  window.findAPI.onFocus(() => { q.focus(); q.select(); });
+</script>
+</body>
+</html>

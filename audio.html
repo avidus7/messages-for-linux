@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; media-src data:; script-src 'unsafe-inline';">
+<title>audio</title>
+</head>
+<body>
+<script>
+  // Hidden window whose only job is playing sound. The main process can't
+  // play audio itself, so it hands us data: URLs over IPC and we do it here.
+  (function () {
+    var cache = {};       // name -> HTMLAudioElement (one-shot sounds)
+    var ambient = null;   // the looping bed, if any
+
+    function oneShot(name, dataUrl, volume) {
+      try {
+        var a = cache[name];
+        if (!a) { a = new Audio(dataUrl); cache[name] = a; }
+        a.volume = Math.max(0, Math.min(1, volume));
+        a.currentTime = 0;
+        var p = a.play();
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+    }
+
+    function setAmbient(dataUrl, volume) {
+      try {
+        if (ambient) { ambient.pause(); ambient = null; }
+        if (!dataUrl) return;
+        ambient = new Audio(dataUrl);
+        ambient.loop = true;
+        ambient.volume = Math.max(0, Math.min(1, volume));
+        var p = ambient.play();
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+    }
+
+    function ambientVolume(volume) {
+      if (ambient) ambient.volume = Math.max(0, Math.min(1, volume));
+    }
+
+    window.audioAPI.onPlay(oneShot);
+    window.audioAPI.onAmbient(setAmbient);
+    window.audioAPI.onAmbientVolume(ambientVolume);
+    window.audioAPI.ready();
+  })();
+</script>
+</body>
+</html>

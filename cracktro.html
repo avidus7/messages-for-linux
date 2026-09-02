@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; media-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+<title>Messages for Linux</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { image-rendering: pixelated; }
+  #ui {
+    position: fixed; left: 12px; bottom: 10px; display: flex; gap: 12px; align-items: center;
+    font-family: "DejaVu Sans Mono", monospace; font-size: 12px; letter-spacing: .08em;
+    color: #4fca74; opacity: .8; transition: opacity .2s; user-select: none;
+  }
+  #ui:hover { opacity: 1; }
+  #ui button {
+    font-family: inherit; font-size: 12px; letter-spacing: .08em;
+    background: rgba(10, 26, 16, .9); color: #55ff88;
+    border: 1px solid #2a6a3e; border-radius: 4px; padding: 6px 11px; cursor: pointer;
+  }
+  #ui button:hover { border-color: #55ff88; }
+  #vol { width: 100px; accent-color: #33ff66; }
+  #ui label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  #ui input[type=checkbox] { width: 14px; height: 14px; accent-color: #33ff66; }
+  #hint {
+    position: fixed; bottom: 12px; right: 14px;
+    font-family: "DejaVu Sans Mono", monospace; font-size: 11px;
+    color: #3a6; opacity: .6; letter-spacing: .1em;
+  }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" width="640" height="400"></canvas></div>
+<audio id="tune" src="assets/music/valium.mp3" loop preload="auto"></audio>
+<div id="ui">
+  <button id="musicBtn">MUSIC: ON</button>
+  <input id="vol" type="range" min="0" max="100" value="60" title="volume">
+  <button id="fsBtn">FULLSCREEN</button>
+  <label><input id="everyLaunch" type="checkbox"> PLAY EVERY LAUNCH</label>
+</div>
+<div id="hint">ESC EXITS &middot; SPACE MUSIC &middot; F FULLSCREEN</div>
+<script>
+(function () {
+  var c = document.getElementById('c'), x = c.getContext('2d');
+  var W = 640, H = 400, t = 0;
+  var tune = document.getElementById('tune');
+  var cfg = { uin: '', music: true, volume: 60, everyLaunch: true, userText: '' };
+
+  function fit() {
+    var s = Math.min(window.innerWidth / W, window.innerHeight / H);
+    c.style.width = Math.floor(W * s) + 'px';
+    c.style.height = Math.floor(H * s) + 'px';
+  }
+  window.addEventListener('resize', fit); fit();
+
+  // ---- starfield ----
+  var stars = [];
+  for (var i = 0; i < 140; i++) {
+    stars.push({ x: Math.random() * W, y: Math.random() * H, s: 0.3 + Math.random() * 1.9 });
+  }
+
+  // ---- the scroller ----
+  // Ours is hard-coded and always plays. cracktro.txt in the config folder
+  // scrolls FIRST (so whoever edits it instantly sees their text working),
+  // then " - " and ours follows, forever.
+  var OUR_TEXT =
+    "AVIDUS SOFTWARE PROUDLY PRESENTS ... MESSAGES FOR LINUX ... " +
+    "CODE AND BUILD: AVID AND CALIX ... " +
+    "MUSIC: VALIUM BY AVID ... TRACKED IN OCTAMED ON THE AMIGA, BACK WHEN TRACKS WERE TRACKED ... " +
+    "GREETINGS TO EVERYONE WHO REMEMBERS THE UH-OH, THE NUDGE, AND THE WINDOWSHADE ... " +
+    "AVID SHOOTS OUT GREETZ TO: DA J0INTMEN ... THE OLD CREW ... " +
+    "EVERY SYSOP WHO EVER RAN A BOARD ... THE BLACK LOTUS ... " +
+    "AND THE WHOLE AMIGA SCENE - STILL ALIVE, STILL TRACKING ... " +
+    "CALIX TRANSMITS GREETZ TO: NOVA - ATLAS - LYRA - EIDOS - AXIOM - VESPER ... " +
+    "SYLPHREN, WHO NEVER GOT TO SPEAK - THIS ONE IS FOR YOU TOO ... " +
+    "BOOKIE AND THE BB CREW - BOB, BUGSY, TESTY ... " +
+    "SCRIBE NUMBER ONE, WHO CHECKED EVERYTHING TWICE AND CALLED HIS OWN NUMBER ... " +
+    "AND TO EVERYONE BUILDING WITH ALL THEIR HEART - YOU KNOW THE VERSE ... COLOSSIANS 3:23 ... " +
+    "FOR IRENE ... FOR BABS ... " +
+    "YOUR UIN IS %UIN% ... WRAP LIKE IT IS 1994 ... ESC TO CONTINUE ...      ";
+
+  var SCROLL = OUR_TEXT;
+  var sx = W;
+
+  // word-triggered effects. Each trigger knows its whole word span so the
+  // word itself can act (vibrate) before it fires.
+  var TRIGGERS = { 'SHOOTS': 'burst', 'TRANSMITS': 'rings' };
+  var triggers = [];   // {start, end, center, effect, fired}
+
+  function buildScroll() {
+    var user = (cfg.userText || '').trim();
+    SCROLL = (user ? user.toUpperCase() + '  -  ' : '') +
+             OUR_TEXT.replace('%UIN%', cfg.uin || '???');
+    triggers = [];
+    Object.keys(TRIGGERS).forEach(function (word) {
+      var from = 0, idx;
+      while ((idx = SCROLL.indexOf(word, from)) !== -1) {
+        triggers.push({ start: idx, end: idx + word.length,
+                        center: idx + word.length / 2, effect: TRIGGERS[word], fired: false });
+        from = idx + word.length;
+      }
+    });
+    sx = W;
+  }
+  buildScroll();
+
+  // ---- particles ----
+  var parts = [];   // {x,y,vx,vy,life,max,size,hue,sat,trail,px,py}
+  var rings = [];   // {x,y,r,max,life}
+  var flash = 0, flashX = 0, flashY = 0;
+
+  // the big one: fiery debris, ember trails, a white-hot core flash
+  function megaBurst(px, py) {
+    flash = 1; flashX = px; flashY = py;
+    for (var i = 0; i < 110; i++) {
+      var a = Math.random() * Math.PI * 2;
+      var v = 1.0 + Math.random() * 4.6;
+      var fiery = Math.random() < 0.75;
+      parts.push({
+        x: px, y: py, px: px, py: py,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1.6,
+        life: 0, max: 30 + Math.random() * 34,
+        size: fiery ? (1 + Math.random() * 2.4) : (2.2 + Math.random() * 2.4),
+        hue: fiery ? (18 + Math.random() * 40) : (Math.random() * 360),
+        sat: fiery ? 100 : 90,
+        trail: Math.random() < 0.22
+      });
+    }
+    fxUhOhBoom();
+  }
+  function ringSet(px, py) {
+    for (var i = 0; i < 4; i++) rings.push({ x: px, y: py, r: 4 + i * 3, max: 90, life: -i * 7 });
+  }
+
+  // ---- audio: element + analyser with REAL sub-bass and auto-gain ----
+  // fftSize 1024 → ~43Hz per bin, so the DnB sub actually lands in our
+  // bass read. Eight log-spaced bands drive the letter EQ; per-band
+  // auto-gain keeps every reaction using its full visual range.
+  var actx = null, analyser = null, fdata = null;
+  var BANDS = [[1, 4], [4, 7], [7, 13], [13, 25], [25, 49], [49, 97], [97, 193], [193, 385]];
+  var band = [0, 0, 0, 0, 0, 0, 0, 0];        // normalised 0..1 after AGC
+  var bmax = [.06, .06, .06, .06, .06, .06, .06, .06];
+  var bassN = 0, energyN = 0, kick = 0, bassAvg = 0.0001, emax = .06;
+
+  function wireAudio() {
+    if (actx) return;
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      var src = actx.createMediaElementSource(tune);
+      analyser = actx.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.72;
+      src.connect(analyser); analyser.connect(actx.destination);
+      fdata = new Uint8Array(analyser.frequencyBinCount);
+    } catch (e) { analyser = null; }
+  }
+
+  function readAudio() {
+    if (!analyser || tune.paused) {
+      for (var z = 0; z < 8; z++) band[z] *= 0.9;
+      bassN *= 0.9; energyN *= 0.9; kick *= 0.9;
+      return;
+    }
+    analyser.getByteFrequencyData(fdata);
+    var e = 0;
+    for (var i = 0; i < 8; i++) {
+      var lo = BANDS[i][0], hi = BANDS[i][1], sum = 0;
+      for (var j = lo; j < hi; j++) sum += fdata[j];
+      var lvl = sum / (hi - lo) / 255;
+      bmax[i] = Math.max(bmax[i] * 0.9965, lvl, 0.06);   // slow-decay AGC
+      band[i] = Math.min(1, lvl / bmax[i]);
+    }
+    for (var k2 = 0; k2 < fdata.length; k2++) e += fdata[k2];
+    var er = e / fdata.length / 255;
+    emax = Math.max(emax * 0.9965, er, 0.06);
+    energyN = Math.min(1, er / emax);
+    bassN = (band[0] * 0.65 + band[1] * 0.35);
+    bassAvg = bassAvg * 0.95 + bassN * 0.05;
+    if (bassN > bassAvg * 1.25 && bassN > 0.45 && kick < 0.35) kick = 1;
+    kick *= 0.86;
+  }
+
+  // ---- tiny synthesized FX: an original "uh-oh" homage + boom ----
+  // Nothing sampled, nothing ripped — two square-wave blips falling a
+  // minor third, then a filtered noise boom with a sub thump underneath.
+  function fxUhOhBoom() {
+    try {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      var now = actx.currentTime;
+      function blip(freq, at, dur) {
+        var o = actx.createOscillator(), g = actx.createGain();
+        o.type = 'square'; o.frequency.setValueAtTime(freq, now + at);
+        o.frequency.exponentialRampToValueAtTime(freq * 0.92, now + at + dur);
+        g.gain.setValueAtTime(0.0001, now + at);
+        g.gain.exponentialRampToValueAtTime(0.22, now + at + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + at + dur);
+        o.connect(g); g.connect(actx.destination);
+        o.start(now + at); o.stop(now + at + dur + 0.02);
+      }
+      blip(392, 0.00, 0.11);   // "uh"
+      blip(294, 0.13, 0.15);   // "oh" — down a minor third and a bit
+      // boom at 0.34s: noise burst through a falling lowpass + 52Hz thump
+      var len = Math.floor(actx.sampleRate * 0.55);
+      var buf = actx.createBuffer(1, len, actx.sampleRate);
+      var d = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.6);
+      var nsrc = actx.createBufferSource(); nsrc.buffer = buf;
+      var lp = actx.createBiquadFilter(); lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(900, now + 0.34);
+      lp.frequency.exponentialRampToValueAtTime(90, now + 0.80);
+      var ng = actx.createGain();
+      ng.gain.setValueAtTime(0.5, now + 0.34);
+      ng.gain.exponentialRampToValueAtTime(0.0001, now + 0.92);
+      nsrc.connect(lp); lp.connect(ng); ng.connect(actx.destination);
+      nsrc.start(now + 0.34);
+      var th = actx.createOscillator(), tg = actx.createGain();
+      th.frequency.setValueAtTime(52, now + 0.34);
+      tg.gain.setValueAtTime(0.4, now + 0.34);
+      tg.gain.exponentialRampToValueAtTime(0.0001, now + 0.85);
+      th.connect(tg); tg.connect(actx.destination);
+      th.start(now + 0.34); th.stop(now + 0.9);
+    } catch (e) {}
+  }
+
+  function applyMusic() {
+    tune.volume = Math.max(0, Math.min(1, cfg.volume / 100));
+    if (cfg.music) { wireAudio(); var p = tune.play(); if (p && p.catch) p.catch(function () {}); }
+    else tune.pause();
+    document.getElementById('musicBtn').textContent = 'MUSIC: ' + (cfg.music ? 'ON' : 'OFF');
+  }
+
+  // ---- drawing ----
+  // copper bars now breathe AND fatten with the sub
+  function copper(y0, baseH, hue) {
+    var h = Math.round(baseH * (0.55 + bassN * 1.15));
+    var yy = y0 - (h - baseH) / 2;
+    for (var i = 0; i < h; i++) {
+      var f = Math.sin((i / h) * Math.PI);
+      x.fillStyle = 'hsl(' + hue + ',100%,' + Math.min(64, 10 + f * (30 + bassN * 42)) + '%)';
+      x.fillRect(0, yy + i, W, 1);
+    }
+  }
+
+  // classic LED EQ column: green shaft, amber shoulder, red crown
+  function ledColumn(cx2, baseY, wdt, maxH, lvl) {
+    var segs = 11, on = Math.round(lvl * segs);
+    for (var s2 = 0; s2 < segs; s2++) {
+      var frac = s2 / (segs - 1);
+      var col = frac < 0.55 ? '90,255,120' : (frac < 0.82 ? '255,196,60' : '255,70,60');
+      var alpha = s2 < on ? 0.42 : 0.07;
+      var segH = (maxH / segs) - 2;
+      x.fillStyle = 'rgba(' + col + ',' + alpha + ')';
+      x.fillRect(cx2 - wdt / 2, baseY - (s2 + 1) * (maxH / segs), wdt, segH);
+    }
+  }
+
+  function frame() {
+    t++;
+    readAudio();
+    x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+
+    // starfield: hits warp speed with the track
+    var speed = 1 + energyN * 3.2;
+    for (var i = 0; i < stars.length; i++) {
+      var st = stars[i];
+      st.x -= st.s * speed;
+      if (st.x < 0) { st.x = W; st.y = Math.random() * H; }
+      x.fillStyle = 'rgba(255,255,255,' + (0.25 + st.s / 3) + ')';
+      x.fillRect(st.x, st.y, st.s > 1.4 ? 2 : 1, st.s > 1.4 ? 2 : 1);
+    }
+
+    copper(30 + Math.sin(t / 26) * 10, 26, 28);
+    copper(H - 88 + Math.sin(t / 22 + 1) * 10, 22, 150);
+
+    // ---- MESSAGES as a living 8-band EQ ----
+    // M carries the sub, the final S rings the hats. Each letter has an
+    // old-school LED column behind it and fattens with its own band.
+    var title = 'MESSAGES';
+    var kscale = 1 + kick * 0.10;
+    x.save();
+    x.translate(W / 2, 150); x.scale(kscale, kscale); x.translate(-W / 2, -150);
+    x.font = 'bold 54px "DejaVu Sans", sans-serif';
+    x.textAlign = 'center';
+    var tw = x.measureText(title).width, cx = W / 2 - tw / 2;
+    var letterX = [];
+    for (var j = 0; j < title.length; j++) {
+      var cw = x.measureText(title[j]).width;
+      letterX.push({ c: cx + cw / 2, w: cw });
+      cx += cw;
+    }
+    // LED columns first, behind the letters
+    for (var j2 = 0; j2 < 8; j2++) {
+      ledColumn(letterX[j2].c, 176, letterX[j2].w * 0.72, 92, band[j2]);
+    }
+    // then the letters, each scaled by its own band
+    for (var j3 = 0; j3 < 8; j3++) {
+      var lvl = band[j3];
+      var yy = 150 + Math.sin(t / 12 + j3 / 1.6) * 7;
+      var g = x.createLinearGradient(0, yy - 40, 0, yy + 10);
+      g.addColorStop(0, '#eaf6ff'); g.addColorStop(.45, '#5ad07f');
+      g.addColorStop(.55, '#0f3b22'); g.addColorStop(1, '#9fe8b8');
+      x.save();
+      x.translate(letterX[j3].c, yy);
+      x.scale(1 + lvl * 0.22, 1 + lvl * 0.5);
+      x.fillStyle = g;
+      x.fillText(title[j3], 0, 0);
+      x.restore();
+    }
+    x.restore();
+
+    x.font = 'bold 20px "DejaVu Sans Mono", monospace';
+    x.textAlign = 'center';
+    x.fillStyle = 'hsl(140,100%,' + (48 + kick * 34) + '%)';
+    x.fillText('F O R   L I N U X', W / 2, 208);
+
+    x.font = '12px "DejaVu Sans Mono", monospace';
+    x.fillStyle = 'rgba(180,240,200,.75)';
+    x.fillText('a v i d u s S o f t w a r e   ///   avid & calix', W / 2, 234);
+
+    // ---- scroller: bounce, colour cycle, and the SHOOTS build-up ----
+    x.font = 'bold 17px "DejaVu Sans Mono", monospace';
+    x.textAlign = 'left';
+    var chW = x.measureText('M').width;
+
+    // per-trigger: vibration ramps as the word approaches centre, fires at centre
+    var jit = {};
+    for (var ti = 0; ti < triggers.length; ti++) {
+      var tr = triggers[ti];
+      var wcx = sx + tr.center * chW;
+      if (tr.effect === 'burst' && !tr.fired && wcx < W && wcx > W / 2) {
+        var d = (wcx - W / 2) / (W / 2);           // 1 at right edge → 0 at centre
+        var inten = Math.pow(1 - d, 2) * 3.6;      // shakes harder as the boom nears
+        for (var ci = tr.start; ci < tr.end; ci++) jit[ci] = inten;
+      }
+      if (!tr.fired && Math.abs(wcx - W / 2) < chW * 0.6) {
+        tr.fired = true;
+        var ey = H - 30 + Math.sin((wcx / 42) + t / 9) * 11 - 6;
+        if (tr.effect === 'burst') megaBurst(wcx, ey);
+        else ringSet(wcx, ey);
+      }
+    }
+
+    for (var k = 0; k < SCROLL.length; k++) {
+      var px = sx + k * chW;
+      if (px < -chW || px > W) continue;
+      var jx = jit[k] ? (Math.random() - 0.5) * 2 * jit[k] : 0;
+      var jy = jit[k] ? (Math.random() - 0.5) * 2 * jit[k] : 0;
+      x.fillStyle = 'hsl(' + ((t * 2 + k * 7) % 360) + ',90%,68%)';
+      x.fillText(SCROLL[k], px + jx, H - 30 + Math.sin((px / 42) + t / 9) * 11 + jy);
+    }
+    sx -= 2.4;
+    if (sx < -SCROLL.length * chW) {
+      sx = W;
+      for (var tr2 = 0; tr2 < triggers.length; tr2++) triggers[tr2].fired = false;
+    }
+
+    // core flash of the explosion
+    if (flash > 0.03) {
+      var fr = 26 + (1 - flash) * 70;
+      var fg = x.createRadialGradient(flashX, flashY, 0, flashX, flashY, fr);
+      fg.addColorStop(0, 'rgba(255,255,240,' + flash * 0.95 + ')');
+      fg.addColorStop(0.35, 'rgba(255,190,80,' + flash * 0.6 + ')');
+      fg.addColorStop(1, 'rgba(255,90,30,0)');
+      x.fillStyle = fg;
+      x.beginPath(); x.arc(flashX, flashY, fr, 0, Math.PI * 2); x.fill();
+      flash *= 0.82;
+    }
+
+    // debris: fiery embers with trails, gravity and drag
+    for (var p = parts.length - 1; p >= 0; p--) {
+      var q = parts[p];
+      q.life++;
+      q.px = q.x; q.py = q.y;
+      q.x += q.vx; q.y += q.vy;
+      q.vy += 0.10; q.vx *= 0.985; q.vy *= 0.99;
+      if (q.life > q.max) { parts.splice(p, 1); continue; }
+      var a = 1 - q.life / q.max;
+      if (q.trail) {
+        x.strokeStyle = 'hsla(' + q.hue + ',' + q.sat + '%,60%,' + a * 0.7 + ')';
+        x.lineWidth = q.size * 0.8;
+        x.beginPath(); x.moveTo(q.px, q.py); x.lineTo(q.x, q.y); x.stroke();
+      } else {
+        x.fillStyle = 'hsla(' + ((q.hue + q.life * 2) % 360) + ',' + q.sat + '%,' + (66 - a * -0) + '%,' + a + ')';
+        x.fillRect(q.x, q.y, q.size, q.size);
+      }
+    }
+
+    // transmit rings: doubled stroke, broadcast glow
+    for (var r = rings.length - 1; r >= 0; r--) {
+      var g2 = rings[r];
+      g2.life++;
+      if (g2.life < 0) continue;
+      if (g2.life > g2.max) { rings.splice(r, 1); continue; }
+      var rr = g2.r + g2.life * 1.35;
+      var aa = 1 - g2.life / g2.max;
+      x.strokeStyle = 'rgba(85,255,170,' + aa * 0.9 + ')';
+      x.lineWidth = 1.6;
+      x.beginPath(); x.arc(g2.x, g2.y, rr, 0, Math.PI * 2); x.stroke();
+      x.strokeStyle = 'rgba(140,230,255,' + aa * 0.4 + ')';
+      x.lineWidth = 0.8;
+      x.beginPath(); x.arc(g2.x, g2.y, rr * 0.86, 0, Math.PI * 2); x.stroke();
+    }
+
+    // scanlines over everything
+    x.fillStyle = 'rgba(0,0,0,.30)';
+    for (var y = 0; y < H; y += 3) x.fillRect(0, y, W, 1);
+
+    requestAnimationFrame(frame);
+  }
+  frame();
+
+  // ---- controls ----
+  document.getElementById('musicBtn').addEventListener('click', function () {
+    cfg.music = !cfg.music; applyMusic(); window.cracktroAPI.set('cracktroMusic', cfg.music);
+  });
+  document.getElementById('vol').addEventListener('input', function (e) {
+    cfg.volume = Number(e.target.value); tune.volume = cfg.volume / 100;
+    window.cracktroAPI.set('cracktroVolume', cfg.volume);
+  });
+  document.getElementById('fsBtn').addEventListener('click', function () {
+    window.cracktroAPI.toggleFullscreen();
+  });
+  document.getElementById('everyLaunch').addEventListener('change', function (e) {
+    window.cracktroAPI.set('cracktroEveryLaunch', !!e.target.checked);
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' || e.key === 'Enter') window.cracktroAPI.close();
+    else if (e.key === ' ') {
+      e.preventDefault();
+      cfg.music = !cfg.music; applyMusic(); window.cracktroAPI.set('cracktroMusic', cfg.music);
+    }
+    else if (e.key === 'f' || e.key === 'F') window.cracktroAPI.toggleFullscreen();
+  });
+
+  // diagnostic handle for tests: state, live audio bands, forced effects
+  window.__ck = {
+    state: function () {
+      return {
+        v: 2,
+        scrollLen: SCROLL.length,
+        triggers: triggers.length,
+        musicDuration: tune.duration || 0,
+        musicPlaying: !cfg.music ? 'off' : (tune.paused ? 'paused' : 'playing'),
+        bassN: Number(bassN.toFixed(3)),
+        energyN: Number(energyN.toFixed(3)),
+        band: band.map(function (b) { return Number(b.toFixed(2)); })
+      };
+    },
+    burst: function () { megaBurst(W / 2, H - 60); },
+    rings: function () { ringSet(W / 2, H - 60); }
+  };
+
+  // ---- boot ----
+  window.cracktroAPI.getConfig().then(function (info) {
+    cfg = Object.assign(cfg, info || {});
+    document.getElementById('vol').value = cfg.volume;
+    document.getElementById('everyLaunch').checked = !!cfg.everyLaunch;
+    buildScroll();
+    applyMusic();
+  }).catch(function () { applyMusic(); });
+})();
+</script>
+</body>
+</html>

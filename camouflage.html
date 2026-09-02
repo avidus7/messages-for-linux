@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+<title>Terminal</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; height: 100vh; overflow: hidden; font-family: "DejaVu Sans Mono", monospace; }
+
+  /* terminal */
+  .term { white-space: pre-wrap; background: #0c0c0c; color: #d0d0d0; padding: 14px 16px; height: 100vh; font-size: 13px; line-height: 1.5; }
+  .term .p { color: #4ec9b0; }
+  .term .d { color: #6a9955; }
+  .cur { display: inline-block; width: 8px; height: 15px; background: #d0d0d0; vertical-align: -2px; animation: bl 1s steps(2) infinite; }
+  @keyframes bl { 0%,50% { opacity: 1 } 51%,100% { opacity: 0 } }
+
+  /* editor */
+  .ed { background: #1e1e1e; color: #d4d4d4; height: 100vh; display: grid; grid-template-columns: 46px 1fr; font-size: 13px; line-height: 1.55; }
+  .ed .gut { background: #1e1e1e; color: #5a5a5a; text-align: right; padding: 12px 8px 0 0; user-select: none; }
+  .ed .code { padding: 12px 0 0 12px; white-space: pre; overflow: hidden; }
+  .kw { color: #569cd6; } .fn { color: #dcdcaa; } .st { color: #ce9178; } .cm { color: #6a9955; } .nu { color: #b5cea8; }
+
+  /* spreadsheet */
+  .ss { background: #fff; color: #222; height: 100vh; font-family: "DejaVu Sans", sans-serif; font-size: 12.5px; }
+  .ss table { border-collapse: collapse; width: 100%; }
+  .ss th, .ss td { border: 1px solid #d6d6d6; padding: 4px 7px; text-align: left; height: 23px; }
+  .ss th { background: #f1f3f4; font-weight: 600; color: #5f6368; text-align: center; width: 90px; }
+  .ss td.rh { background: #f1f3f4; text-align: center; color: #5f6368; width: 34px; }
+  .ss .n { text-align: right; }
+  .hint { position: fixed; bottom: 6px; right: 10px; font-size: 10px; opacity: .28; font-family: sans-serif; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="hint">Esc</div>
+<script>
+  (function () {
+    var mode = new URLSearchParams(location.search).get('mode') || 'terminal';
+    var root = document.getElementById('root');
+
+    if (mode === 'editor') {
+      document.title = 'untitled.py - Editor';
+      // Each line is a list of [cssClass, text] tokens. Nested on purpose:
+      // a flat list gets read as the wrong pairs and the class names leak
+      // into the visible text.
+      var code = [
+        [['cm', '# batch_resize.py - resize images in a folder']],
+        [],
+        [['kw', 'import'], ['', ' os']],
+        [['kw', 'from'], ['', ' PIL '], ['kw', 'import'], ['', ' Image']],
+        [],
+        [['kw', 'def'], ['', ' '], ['fn', 'resize_all'], ['', '(src, dst, width='], ['nu', '1280'], ['', '):']],
+        [['', '    os.makedirs(dst, exist_ok='], ['kw', 'True'], ['', ')']],
+        [['', '    '], ['kw', 'for'], ['', ' name '], ['kw', 'in'], ['', ' os.listdir(src):']],
+        [['', '        '], ['kw', 'if'], ['', ' '], ['kw', 'not'], ['', ' name.lower().endswith(('], ['st', '".png"'], ['', ', '], ['st', '".jpg"'], ['', ')):']],
+        [['', '            '], ['kw', 'continue']],
+        [['', '        img = Image.open(os.path.join(src, name))']],
+        [['', '        h = '], ['kw', 'int'], ['', '(img.height * (width / img.width))']],
+        [['', '        img.resize((width, h)).save(os.path.join(dst, name))']],
+        [],
+        [['cm', '# TODO: add a --quality flag']],
+        []
+      ];
+      var gut = '', body = '';
+      code.forEach(function (tokens, i) {
+        gut += (i + 1) + '<br>';
+        var line = '';
+        tokens.forEach(function (tk) {
+          line += tk[0] ? '<span class="' + tk[0] + '">' + esc(tk[1]) + '</span>' : esc(tk[1]);
+        });
+        body += line + '\n';
+      });
+      root.innerHTML = '<div class="ed"><div class="gut">' + gut + '</div><div class="code">' + body + '</div></div>';
+
+    } else if (mode === 'spreadsheet') {
+      document.title = 'Sheet1';
+      var cols = ['A', 'B', 'C', 'D', 'E', 'F'];
+      var rows = [
+        ['Item', 'Qty', 'Unit', 'Total', '', ''],
+        ['Cable ties', '120', '0.08', '9.60', '', ''],
+        ['Heat shrink', '40', '0.35', '14.00', '', ''],
+        ['Solder 0.8mm', '2', '11.25', '22.50', '', ''],
+        ['Flux pen', '1', '8.99', '8.99', '', ''],
+        ['USB-C board', '6', '3.40', '20.40', '', ''],
+        ['Enclosure', '3', '7.15', '21.45', '', ''],
+        ['', '', 'Subtotal', '96.94', '', ''],
+        ['', '', 'Tax', '12.60', '', ''],
+        ['', '', 'Total', '109.54', '', '']
+      ];
+      var h = '<tr><th class="rh"></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr>';
+      var b = '';
+      for (var r = 0; r < 18; r++) {
+        b += '<tr><td class="rh">' + (r + 1) + '</td>';
+        for (var c = 0; c < cols.length; c++) {
+          var v = rows[r] ? (rows[r][c] || '') : '';
+          b += '<td class="' + (/^[0-9.]+$/.test(v) ? 'n' : '') + '">' + esc(v) + '</td>';
+        }
+        b += '</tr>';
+      }
+      root.innerHTML = '<div class="ss"><table>' + h + b + '</table></div>';
+
+    } else {
+      document.title = 'Terminal';
+      // Line-based like the editor: each entry is one terminal line made of
+      // [cssClass, text] tokens. Anything flatter runs the lines together.
+      var lines = [
+        [['p', 'avidus@avid1337b00k'], ['', ':'], ['d', '~/projects'], ['', '$ git status']],
+        [],
+        [['', 'On branch main']],
+        [['', "Your branch is up to date with 'origin/main'."]],
+        [],
+        [['', 'Changes not staged for commit:']],
+        [['', '  (use "git add <file>..." to update what will be committed)']],
+        [['', '  (use "git restore <file>..." to discard changes)']],
+        [],
+        [['', '        modified:   src/loader.c']],
+        [['', '        modified:   Makefile']],
+        [],
+        [['', 'no changes added to commit (use "git add" and/or "git commit -a")']],
+        [],
+        [['p', 'avidus@avid1337b00k'], ['', ':'], ['d', '~/projects'], ['', '$ make']],
+        [['', 'cc -O2 -Wall -c src/loader.c -o build/loader.o']],
+        [['', 'cc -O2 -Wall -c src/main.c -o build/main.o']],
+        [],
+        [['p', 'avidus@avid1337b00k'], ['', ':'], ['d', '~/projects'], ['', '$ ']]
+      ];
+      var out = '';
+      lines.forEach(function (tokens) {
+        tokens.forEach(function (tk) {
+          out += tk[0] ? '<span class="' + tk[0] + '">' + esc(tk[1]) + '</span>' : esc(tk[1]);
+        });
+        out += '<br>';
+      });
+      out = out.replace(/<br>$/, '<span class="cur"></span>');
+      root.innerHTML = '<div class="term">' + out + '</div>';
+    }
+
+    function esc(t) {
+      return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+  })();
+</script>
+</body>
+</html>
