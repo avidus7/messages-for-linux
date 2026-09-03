@@ -57,7 +57,8 @@ const DEFAULTS = {
   cracktroSeen: false,           // #71 the first-launch intro plays exactly once
   cracktroMusic: true,           // #71 Valium plays with the intro
   cracktroVolume: 60,            // #71 0-100
-  cracktroEveryLaunch: false     // #71 replay the intro on every app launch
+  cracktroEveryLaunch: false,    // #71 replay the intro on every app launch
+  cracktroCrt: false             // v1.5 the intro's CRT look (scanlines, vignette, bloom)
 };
 
 let settingsPath = null;

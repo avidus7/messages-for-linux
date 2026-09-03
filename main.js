@@ -808,20 +808,43 @@ function revealOrPrompt() {
 // #71 the intro's config: identity, music prefs, and the user's own scroller
 // text from cracktro.txt in the config folder. Their text scrolls first;
 // the built-in text always follows. Lines starting with # are comments.
-const DEFAULT_CRACKTRO_TXT = `# MESSAGES FOR LINUX — this is YOUR scroller file.
-# Anything you write here scrolls FIRST, before the built-in text.
-# Lines starting with # are ignored. Go on — hack our cracktro.
-DIG THE TRACK? GRAB THE MP3 OR THE ORIGINAL AMIGA .MED OF VALIUM BY AVID AT GITHUB.COM/AVIDUS7/MESSAGES-FOR-LINUX
+// v1.5: the default text SHIPS as assets/cracktro.txt (so it is in every
+// package and avid edits one real file). This constant is the fallback if
+// that asset is ever missing. Old v1.4 default kept below for the record.
+const DEFAULT_CRACKTRO_TXT = `# MESSAGES FOR LINUX — this is YOUR scroller file. ENJOY! :)
+# Anything you write here scrolls FIRST, before our hard-coded scroller text.
+# Lines starting with # are ignored.
+# Go on — hax0r our cracktro. :D
+DIG THE JUNGLE/DRUM AND BASS TRACK? GRAB THE .MP3 OR THE O R I G I N A L COMMODORE AMIGA OCTA.MED PRO V4 TRACKER FILE OF "VALIUM" BY FREQ AKA AVID FOR F R E E AT HTTPS://GITHUB.COM/AVIDUS7/MESSAGES-FOR-LINUX
 `;
+// v1.4 default (superseded, kept for history):
+//   DIG THE TRACK? GRAB THE MP3 OR THE ORIGINAL AMIGA .MED OF VALIUM BY AVID AT GITHUB.COM/AVIDUS7/MESSAGES-FOR-LINUX
+
+function cracktroTxtPath() { return path.join(app.getPath('userData'), 'cracktro.txt'); }
+function cracktroTemplate() {
+  try { return fs.readFileSync(path.join(ASSET_DIR, 'cracktro.txt'), 'utf8'); }
+  catch (err) { log('assets/cracktro.txt missing, using built-in default:', err.message); return DEFAULT_CRACKTRO_TXT; }
+}
+// creates the user's cracktro.txt from the shipped template if it isn't there yet
+function ensureCracktroTxt() {
+  const p = cracktroTxtPath();
+  if (!fs.existsSync(p)) {
+    fs.writeFileSync(p, cracktroTemplate(), 'utf8');
+    log('cracktro.txt created with defaults');
+  }
+  return p;
+}
+// Help -> Edit Intro Scroller Text… : opens the user's file in their editor,
+// the same way custom.css does. No hunting through hidden config folders.
+function editCracktroTxt() {
+  try { shell.openPath(ensureCracktroTxt()); }
+  catch (err) { dialog.showErrorBox('Intro Scroller Text', `Couldn't open cracktro.txt:\n${err.message}`); }
+}
 
 ipcMain.handle('cracktro:config', () => {
   let userText = '';
   try {
-    const p = path.join(app.getPath('userData'), 'cracktro.txt');
-    if (!fs.existsSync(p)) {
-      fs.writeFileSync(p, DEFAULT_CRACKTRO_TXT, 'utf8');
-      log('cracktro.txt created with defaults');
-    }
+    const p = ensureCracktroTxt();
     if (fs.existsSync(p)) {
       userText = fs.readFileSync(p, 'utf8')
         .split('\n')
@@ -836,11 +859,12 @@ ipcMain.handle('cracktro:config', () => {
     music: s.cracktroMusic,
     volume: s.cracktroVolume,
     everyLaunch: s.cracktroEveryLaunch,
+    crt: s.cracktroCrt,                       // v1.5 CRT look
     userText
   };
 });
 
-const CRACKTRO_KEYS = ['cracktroMusic', 'cracktroVolume', 'cracktroEveryLaunch'];
+const CRACKTRO_KEYS = ['cracktroMusic', 'cracktroVolume', 'cracktroEveryLaunch', 'cracktroCrt'];
 ipcMain.on('cracktro:set', (_e, { key, value }) => {
   if (!CRACKTRO_KEYS.includes(key)) return;             // the intro sets its own three keys, nothing else
   if (typeof value !== typeof settings.DEFAULTS[key]) return;
@@ -1057,6 +1081,7 @@ const actions = {
   setCamouflage: (mode) => { settings.set('camouflage', CAMO_MODES[mode] ? mode : 'hide'); rebuildAppMenu(); },
   showCracktro: () => showCracktro(true),
   setCracktroEveryLaunch: (v) => settings.set('cracktroEveryLaunch', !!v),
+  editCracktroTxt,
   setPin: () => showLockWindow('set'),
   lockNow,
   disableAppLock,

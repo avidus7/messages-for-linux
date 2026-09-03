@@ -1,0 +1,5 @@
+# MESSAGES FOR LINUX — this is YOUR scroller file. ENJOY! :)
+# Anything you write here scrolls FIRST, before our hard-coded scroller text.
+# Lines starting with # are ignored.
+# Go on — hax0r our cracktro. :D
+DIG THE JUNGLE/DRUM AND BASS TRACK? GRAB THE .MP3 OR THE O R I G I N A L COMMODORE AMIGA OCTA.MED PRO V4 TRACKER FILE OF "VALIUM" BY FREQ AKA AVID FOR F R E E AT HTTPS://GITHUB.COM/AVIDUS7/MESSAGES-FOR-LINUX

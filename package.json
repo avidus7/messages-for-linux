@@ -1,7 +1,7 @@
 {
   "name": "messages-for-linux",
   "productName": "Messages for Linux",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "An unofficial Google Messages desktop app for Linux, by avidusSoftware. Not affiliated with Google.",
   "main": "main.js",
   "author": "avidusSoftware",

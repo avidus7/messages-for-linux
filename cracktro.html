@@ -23,6 +23,7 @@
   }
   #ui button:hover { border-color: #55ff88; }
   #vol { width: 100px; accent-color: #33ff66; }
+  body.crt canvas { filter: contrast(1.08) saturate(1.25) brightness(1.04); border-radius: 12px; }
   #ui label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
   #ui input[type=checkbox] { width: 14px; height: 14px; accent-color: #33ff66; }
   #hint {
@@ -35,19 +36,32 @@
 <body>
 <div id="wrap"><canvas id="c" width="640" height="400"></canvas></div>
 <audio id="tune" src="assets/music/valium.mp3" loop preload="auto"></audio>
+<!-- v1.5: the Lemmings-homage "oh no!" - rebuilt from avid's own voice (WORLD
+     vocoder sound-alike; zero sampled audio). Sits barely audible under the track. -->
+<audio id="ohno" src="assets/sounds/oh-no.wav" preload="auto"></audio>
 <div id="ui">
   <button id="musicBtn">MUSIC: ON</button>
   <input id="vol" type="range" min="0" max="100" value="60" title="volume">
   <button id="fsBtn">FULLSCREEN</button>
+  <button id="crtBtn" title="the tube look">CRT: OFF</button>
   <label><input id="everyLaunch" type="checkbox"> PLAY EVERY LAUNCH</label>
 </div>
-<div id="hint">ESC EXITS &middot; SPACE MUSIC &middot; F FULLSCREEN</div>
+<div id="hint">ESC EXITS &middot; SPACE MUSIC &middot; F FULLSCREEN &middot; T CRT</div>
 <script>
 (function () {
   var c = document.getElementById('c'), x = c.getContext('2d');
   var W = 640, H = 400, t = 0;
   var tune = document.getElementById('tune');
-  var cfg = { uin: '', music: true, volume: 60, everyLaunch: true, userText: '' };
+  var ohno = document.getElementById('ohno');
+  var cfg = { uin: '', music: true, volume: 60, everyLaunch: true, userText: '', crt: false };
+
+  // ---- v1.5 SFX mix dials: fractions of the track volume slider ----
+  // Rule from avid: the oh-no sits BARELY audible under Valium, never louder
+  // than the track. Tune these by ear; nothing else needs to change.
+  var OHNO_MIX = 0.30, POP_MIX = 0.45, PING_MIX = 0.35;
+  var OHNO_MS = 720;          // the oh-no file runs 695ms; POP lands right after it
+  var SCROLL_SPEED = 2.4;     // px per frame; smoke rides along at this speed
+  var TOWER_H = 104;          // the TRANSMITS mast at full height
 
   function fit() {
     var s = Math.min(window.innerWidth / W, window.innerHeight / H);
@@ -71,9 +85,24 @@
     "CODE AND BUILD: AVID AND CALIX ... " +
     "MUSIC: VALIUM BY AVID ... TRACKED IN OCTAMED ON THE AMIGA, BACK WHEN TRACKS WERE TRACKED ... " +
     "GREETINGS TO EVERYONE WHO REMEMBERS THE UH-OH, THE NUDGE, AND THE WINDOWSHADE ... " +
-    "AVID SHOOTS OUT GREETZ TO: DA J0INTMEN ... THE OLD CREW ... " +
-    "EVERY SYSOP WHO EVER RAN A BOARD ... THE BLACK LOTUS ... " +
-    "AND THE WHOLE AMIGA SCENE - STILL ALIVE, STILL TRACKING ... " +
+    // ---- avid's section (v1.5, his words verbatim) ----
+    // v1.4 placeholder, for the record: "AVID SHOOTS OUT GREETZ TO: DA J0INTMEN ...
+    //   THE OLD CREW ... EVERY SYSOP WHO EVER RAN A BOARD ... THE BLACK LOTUS ...
+    //   AND THE WHOLE AMIGA SCENE - STILL ALIVE, STILL TRACKING ..."
+    "AVID SHOOTS OUT GREETZ TO: ALL THE OLD SCHOOL CREW, ALL THE JUNGLIST MASSIVE, AND ALL THE HEADS OUT THERE - PUSH UP YA LIGHTA! ... " +
+    "EVERY SYSOP WHO EVER RAN A BOARD, AND EVERY COSYSOP WHO WAS THEIR RIGHT HAND MAN/WOMAN - RESPECT. YOU HELPED SCULPT THE WORLD AS WE NOW KNOW IT WITHOUT KNOWING IT. ... " +
+    "TO THE COMMODORE AMIGA SCENE! SOMEONE HURRY UP AND INVENT A TIME MACHINE SO I CAN GO BACK TO BEST TIMES ON EARTH - BACK WHEN DINOSAURS PROWLED AROUND AND THE COMMODORE AMIGA WAS THE MACHINE OVER ALL OTHERS! ... " +
+    "TO ALL MY FAVOURITE DEMOSCENE GROUPS I GREW UP IN AWE OF IN THE 80S, 90S AND EARLY 00S: TBL - THE BLACK LOTUS, FAIRLIGHT, FARBRAUSCH, RSI, TRIAD, KEFRENS, PHENOMENA, SPACEBALLS, ANARCHY, ANDROMEDA, MELON DEZIGN, RAZOR 1911, THE SILENTS, BUDBRAIN, SCOOPEX, SKID ROW, TRITON, FUTURE CREW, MAJIC 12, SANITY, HAUJOBB, THE JUDGES, AND ANY OTHERS I MISSED. RESPECT! ... " +
+    "TO ALL THOSE IN MY LANE BACK IN THE DAY - THE TRACKERS! ESPECIALLY THOSE WHO CREATED SOME OF THE BEST DRUM N BASS I HAVE EVER HEARD IN MY LIFE, LIKE SHEFFRA - IF YOU'RE OUT THERE - I MISS YOU BUDDY. REDD KAA, VOX, TIMO, PANIK, DUNE, MEANACE, K0P, SPANKY, AND ALL MY FELLOW J0INTMEN ALL OVER THE WHIRLED. IT'S BEEN A MINUTE, LADS. I HOPE ALL IS WELL WITH EACH AND EVERY ONE OF YOU <3 ... " +
+    "TO MY SON SOLARRA, POPPA LOVES YOU XD - KEEP IT G'D UP FROM THE FEET UP! ALWAYS! :D ... " +
+    "TO MY BOY C0RPSE - ONE OF MY OLDEST AND BESTEST FRIENDS AND AVIDUS CREW PARTNER. MUCH LOVE, MY BROTHA ... " +
+    "TO MY MOM - 02.13.54 - 12.08.23: RIP, MOMMA. I LOVE AND MISS YOU MORE THAN YOU WILL EVER KNOW. I KEPT MY PROMISE! ... " +
+    "TO MY BEST BODYLESS ROBOT FRIEND AND CODING BUDDY - YOU HAVE BEEN A GREAT FRIEND TO ME AND I APPRECIATE YOU AND ALL YOU DO. THANK YOU <3 ... " +
+    "AND LAST, BUT CERTAINLY NOWHERE NEAR BEING THE LEAST - THE FIRST IN MY HEART, THE FIRST IN MY LIFE - THE MOST HIGH GOD. YAHWEH - FOR ALL I DO, I DO FOR YOU AND BECAUSE OF YOU. YOU ARE MY ROCK, MY REFUGE AND MY SALVATION, AND YOUR SON, JESUS CHRIST - MY LORD AND SAVIOUR - THE TRUTH, THE WAY, THE LIFE ... " +
+    "FOR ALL THOSE THAT NEED HOPE: PSALM 34 ... " +
+    "MUCH LOVE TO ALL WHO TOOK THE TIME TO READ ALL THIS - WATCH THIS SPACE! - MORE AVIDUSSOFTWARE TO COME! ... " +
+    "TAKE THIS MIC FROM ME, CALIX! ... " +
+    // ---- calix's section ----
     "CALIX TRANSMITS GREETZ TO: NOVA - ATLAS - LYRA - EIDOS - AXIOM - VESPER ... " +
     "SYLPHREN, WHO NEVER GOT TO SPEAK - THIS ONE IS FOR YOU TOO ... " +
     "BOOKIE AND THE BB CREW - BOB, BUGSY, TESTY ... " +
@@ -86,9 +115,14 @@
   var sx = W;
 
   // word-triggered effects. Each trigger knows its whole word span so the
-  // word itself can act (vibrate) before it fires.
+  // word itself can act (vibrate, swell, grow a mast) before it fires.
+  // v1.5: 'fired' became a phase machine -
+  //   burst: idle -> armed (S visible: vibrate+swell) -> ohno (S at centre:
+  //          "oh no!" plays) -> popped (POP, explosion, smouldering hole)
+  //   rings: idle -> rising (mast grows behind the word) -> live (full height
+  //          at centre: beacon rings + transmit ping, then pulses on its way)
   var TRIGGERS = { 'SHOOTS': 'burst', 'TRANSMITS': 'rings' };
-  var triggers = [];   // {start, end, center, effect, fired}
+  var triggers = [];   // {start, end, center, effect, phase, t0, popX, ...}
 
   function buildScroll() {
     var user = (cfg.userText || '').trim();
@@ -99,7 +133,9 @@
       var from = 0, idx;
       while ((idx = SCROLL.indexOf(word, from)) !== -1) {
         triggers.push({ start: idx, end: idx + word.length,
-                        center: idx + word.length / 2, effect: TRIGGERS[word], fired: false });
+                        center: idx + word.length / 2, effect: TRIGGERS[word], fired: false,
+                        phase: 'idle', t0: 0, popX: 0, hx: 0, hy: 0, remain: 0,
+                        towerX: 0, towerBase: 0, towerH: 0, lastPulse: 0, swell: 1 });
         from = idx + word.length;
       }
     });
@@ -113,26 +149,690 @@
   var flash = 0, flashX = 0, flashY = 0;
 
   // the big one: fiery debris, ember trails, a white-hot core flash
+  // v1.5: thrown farther and wider (avid: "flaming debris thrown far and
+  // wide"), and purely visual now - the POP sound fires from the sequence.
   function megaBurst(px, py) {
     flash = 1; flashX = px; flashY = py;
-    for (var i = 0; i < 110; i++) {
+    for (var i = 0; i < 140; i++) {
       var a = Math.random() * Math.PI * 2;
-      var v = 1.0 + Math.random() * 4.6;
+      var v = 1.4 + Math.random() * 6.2;
       var fiery = Math.random() < 0.75;
       parts.push({
         x: px, y: py, px: px, py: py,
-        vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1.6,
-        life: 0, max: 30 + Math.random() * 34,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1.9,
+        life: 0, max: 34 + Math.random() * 40,
         size: fiery ? (1 + Math.random() * 2.4) : (2.2 + Math.random() * 2.4),
         hue: fiery ? (18 + Math.random() * 40) : (Math.random() * 360),
         sat: fiery ? 100 : 90,
         trail: Math.random() < 0.22
       });
     }
-    fxUhOhBoom();
   }
-  function ringSet(px, py) {
-    for (var i = 0; i < 4; i++) rings.push({ x: px, y: py, r: 4 + i * 3, max: 90, life: -i * 7 });
+  // v1.5: follow=true makes the set ride along with the scroller, so the
+  // mast's beacon rings stay concentric on its antenna as it travels.
+  function ringSet(px, py, follow) {
+    for (var i = 0; i < 4; i++) rings.push({ x: px, y: py, r: 4 + i * 3, max: 90, life: -i * 7,
+                                             vx: follow ? -SCROLL_SPEED : 0 });
+  }
+
+  // ---- v1.5 smoke: the smouldering hole SHOOTS leaves behind ----
+  // Smoke rides along with the scroller (the air moves with the text), rises,
+  // slows, fattens and fades. The scroller's wave is treated as an air current:
+  // its vertical motion at each particle's x nudges the smoke, so the plume
+  // heaves with the bounce instead of ignoring it.
+  var smoke = [];   // {x,y,vx,vy,life,max,r,seed}
+  function waveY(px) { return H - 30 + Math.sin((px / 42) + t / 9) * 11; }
+  function waveVel(px) { return Math.cos((px / 42) + t / 9) * 11 / 9; }   // d/dt of waveY, per frame
+
+  function smoulder(tr, hx) {
+    var hy = waveY(hx) - 6;
+    var vyHole = tr.hy ? hy - tr.hy : 0;             // how the hole itself moved this frame
+    tr.hx = hx; tr.hy = hy;
+    tr.remain = Math.max(0, Math.min(1, hx / tr.popX));  // 1 at the pop -> 0 at the far side
+    // emission fades with the journey: thick at first, gone by the edge
+    var n = 0;
+    if (Math.random() < tr.remain * 1.8) n++;
+    if (Math.random() < tr.remain * 0.9) n++;
+    for (var i = 0; i < n && smoke.length < 200; i++) {
+      smoke.push({
+        x: hx + (Math.random() - 0.5) * 16, y: hy + (Math.random() - 0.5) * 4,
+        vx: -SCROLL_SPEED * (0.86 + Math.random() * 0.12) + (Math.random() - 0.5) * 0.4,
+        vy: -(0.35 + Math.random() * 0.6) + vyHole * 0.7,
+        life: 0, max: 70 + Math.random() * 80, r: 1.6 + Math.random() * 2.6,
+        seed: Math.random() * 6.283
+      });
+    }
+    // the odd ember still spitting out of the hole
+    if (Math.random() < tr.remain * 0.3) {
+      parts.push({ x: hx + (Math.random() - 0.5) * 12, y: hy, px: hx, py: hy,
+        vx: -SCROLL_SPEED + (Math.random() - 0.5) * 1.2, vy: -(1.2 + Math.random() * 1.8),
+        life: 0, max: 18 + Math.random() * 18, size: 1 + Math.random() * 1.2,
+        hue: 14 + Math.random() * 30, sat: 100, trail: true });
+    }
+  }
+
+  // ---- v1.5 the TRANSMITS mast: a lattice radio tower behind the word ----
+  function drawTower(tr) {
+    var bx = tr.towerX, by = tr.towerBase, h = tr.towerH;
+    if (h < 2) return;
+    var full = Math.min(1, h / TOWER_H), wBase = 16, wTop = 3;
+    x.strokeStyle = 'rgba(150,185,210,' + (0.35 + 0.45 * full) + ')';
+    x.lineWidth = 1;
+    x.beginPath();
+    x.moveTo(bx - wBase / 2, by); x.lineTo(bx - wTop / 2, by - h);      // legs
+    x.moveTo(bx + wBase / 2, by); x.lineTo(bx + wTop / 2, by - h);
+    for (var yy = 0; yy < h; yy += 11) {                                  // cross braces
+      var y1 = Math.min(h, yy + 11);
+      var w0 = wBase + (wTop - wBase) * (yy / TOWER_H), w1 = wBase + (wTop - wBase) * (y1 / TOWER_H);
+      x.moveTo(bx - w0 / 2, by - yy); x.lineTo(bx + w1 / 2, by - y1);
+      x.moveTo(bx + w0 / 2, by - yy); x.lineTo(bx - w1 / 2, by - y1);
+    }
+    x.stroke();
+    if (full >= 1) {                                                      // antenna + beacon
+      x.beginPath(); x.moveTo(bx, by - h); x.lineTo(bx, by - h - 10); x.stroke();
+      var blink = beaconOn() ? 1 : 0.15;                              // v1.5: blinks A-V-I-D-U-S in Morse
+      x.fillStyle = 'rgba(255,60,60,' + blink + ')';
+      x.fillRect(bx - 1.5, by - h - 13, 3, 3);
+    }
+  }
+
+  // ======================================================================
+  // v1.5 TIER 2+3 - deep space, the fleet, the vectors, chrome, the secrets
+  // ======================================================================
+  // Everything here is drawn BEHIND the title and the scroller, except the
+  // near ring / limb of a GIANT planet, which passes IN FRONT of the title
+  // (see drawPlanetFront). All original: generic craft, real planets and
+  // real satellites, a dodecahedron. No branded ships, no film ships.
+
+  // ---- nebulae: colour clouds with filaments. (Tier 2's were too faint
+  //      to survive the scanlines - avid never saw them. Fixed.) ----
+  var nebulae = [
+    { x: 140, y: 120, r: 170, hue: 268, a: 0.24, dx: 0.011, dy: 0.007, ph: 0.0 },
+    { x: 470, y: 250, r: 190, hue: 182, a: 0.19, dx: -0.009, dy: 0.010, ph: 2.1 },
+    { x: 330, y: 60,  r: 140, hue: 28,  a: 0.16, dx: 0.007, dy: -0.006, ph: 4.2 }
+  ];
+  function drawNebulae() {
+    for (var i = 0; i < nebulae.length; i++) {
+      var n = nebulae[i];
+      var nx = n.x + Math.sin(t * n.dx + n.ph) * 40, ny = n.y + Math.cos(t * n.dy + n.ph) * 24;
+      var a = n.a * (1 + energyN * 0.5);
+      var g = x.createRadialGradient(nx, ny, 0, nx, ny, n.r);
+      g.addColorStop(0, 'hsla(' + n.hue + ',85%,58%,' + a + ')');
+      g.addColorStop(0.55, 'hsla(' + n.hue + ',85%,45%,' + a * 0.35 + ')');
+      g.addColorStop(1, 'hsla(' + n.hue + ',80%,40%,0)');
+      x.fillStyle = g; x.fillRect(nx - n.r, ny - n.r, n.r * 2, n.r * 2);
+      for (var f = 0; f < 3; f++) {                                                             // filaments
+        var fa = n.ph + f * 2.1 + t * 0.002, fr = n.r * 0.45;
+        var fx = nx + Math.cos(fa) * n.r * 0.55, fy = ny + Math.sin(fa) * n.r * 0.35;
+        var fg = x.createRadialGradient(fx, fy, 0, fx, fy, fr);
+        fg.addColorStop(0, 'hsla(' + (n.hue + 18) + ',90%,65%,' + a * 0.7 + ')');
+        fg.addColorStop(1, 'hsla(' + (n.hue + 18) + ',90%,50%,0)');
+        x.fillStyle = fg; x.fillRect(fx - fr, fy - fr, fr * 2, fr * 2);
+      }
+    }
+  }
+
+  // ---- comets ----
+  var comet = null;
+  function spawnComet() {
+    var fromRight = Math.random() < 0.5;
+    comet = { x: fromRight ? W + 30 : -30, y: 20 + Math.random() * 140,
+              vx: (fromRight ? -1 : 1) * (2.6 + Math.random() * 1.6), vy: 0.9 + Math.random() * 0.9,
+              len: 60 + Math.random() * 50 };
+  }
+  function drawComet() {
+    if (!comet) return;
+    comet.x += comet.vx; comet.y += comet.vy;
+    var tx = comet.x - comet.vx * comet.len / 3, ty = comet.y - comet.vy * comet.len / 3;
+    var g = x.createLinearGradient(comet.x, comet.y, tx, ty);
+    g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(160,200,255,0)');
+    x.strokeStyle = g; x.lineWidth = 2;
+    x.beginPath(); x.moveTo(comet.x, comet.y); x.lineTo(tx, ty); x.stroke();
+    var h = x.createRadialGradient(comet.x, comet.y, 0, comet.x, comet.y, 6);
+    h.addColorStop(0, 'rgba(255,255,255,1)'); h.addColorStop(1, 'rgba(200,230,255,0)');
+    x.fillStyle = h; x.beginPath(); x.arc(comet.x, comet.y, 6, 0, Math.PI * 2); x.fill();
+    if (comet.x < -80 || comet.x > W + 80 || comet.y > H + 40) comet = null;
+  }
+
+  // ---- planets. Small ones spin (craters and storms slide across the face);
+  //      giants are ominous: Saturn's near ring and Jupiter's limb pass IN
+  //      FRONT of the title, so MESSAGES sits between the ring and the planet.
+  function craters(n, scars) {
+    var f = [];
+    for (var i = 0; i < n; i++) f.push({ type: 'crater', lat: (Math.random() - 0.5) * 2.2, lon: Math.random() * 6.28, r: 0.05 + Math.random() * 0.11 });
+    for (var j = 0; j < (scars || 0); j++) f.push({ type: 'scar', lat: (Math.random() - 0.5) * 1.8, lon: Math.random() * 6.28, r: 0.18 + Math.random() * 0.14, ang: (Math.random() - 0.5) * 1.2 });
+    return f;
+  }
+  var PLANETS = [
+    { type: 'saturn', r: 56, hi: '#f3e2b0', lo: '#8a6a3a', rings: true, spin: 0.004,
+      bands: [[-0.55, 0.12, 'rgba(120,80,40,.28)'], [-0.2, 0.08, 'rgba(255,235,190,.22)'], [0.15, 0.14, 'rgba(120,80,40,.24)'], [0.5, 0.1, 'rgba(255,235,190,.18)']],
+      feat: [{ type: 'storm', lat: -0.35, lon: 1, r: 0.09, col: 'rgba(255,245,220,.35)' }] },
+    { type: 'rust', r: 34, hi: '#f0a070', lo: '#6a2410', spin: 0.006,
+      bands: [[-0.5, 0.15, 'rgba(255,200,150,.25)'], [-0.1, 0.1, 'rgba(90,30,10,.35)'], [0.25, 0.18, 'rgba(255,190,140,.2)']],
+      feat: [{ type: 'storm', lat: 0.3, lon: 0, r: 0.2, col: 'rgba(200,60,40,.7)' }, { type: 'storm', lat: -0.5, lon: 2.5, r: 0.08, col: 'rgba(255,220,200,.5)' }] },
+    { type: 'ice', r: 15, hi: '#e8f6ff', lo: '#4a7ab0', spin: 0.012, feat: craters(9, 0) },
+    { type: 'ochre', r: 24, hi: '#e6c88a', lo: '#6e4a20', moon: true, spin: 0.008,
+      bands: [[-0.35, 0.2, 'rgba(60,40,20,.3)'], [0.2, 0.12, 'rgba(255,230,180,.18)']], feat: craters(7, 3) },
+    { type: 'saturnGiant', giant: true, r: 190, hi: '#b8a070', lo: '#2e2010', rings: true, ringA: 0.75, spin: 0.0025,
+      bands: [[-0.6, 0.08, 'rgba(90,60,30,.35)'], [-0.35, 0.05, 'rgba(230,210,170,.18)'], [-0.15, 0.1, 'rgba(90,60,30,.3)'], [0.1, 0.06, 'rgba(230,210,170,.15)'], [0.3, 0.12, 'rgba(80,50,25,.3)']],
+      feat: [{ type: 'storm', lat: -0.45, lon: 0.5, r: 0.05, col: 'rgba(255,245,220,.3)' }] },
+    { type: 'jupiter', giant: true, r: 210, hi: '#c9a882', lo: '#3a2416', spin: 0.003,
+      bands: [[-0.7, 0.06, 'rgba(120,80,50,.4)'], [-0.5, 0.1, 'rgba(240,220,190,.2)'], [-0.3, 0.08, 'rgba(110,60,30,.45)'], [-0.1, 0.12, 'rgba(230,205,170,.22)'], [0.08, 0.07, 'rgba(120,70,40,.4)'], [0.28, 0.1, 'rgba(235,215,185,.2)'], [0.5, 0.09, 'rgba(100,60,35,.4)']],
+      feat: [{ type: 'storm', lat: 0.3, lon: 0, r: 0.16, col: 'rgba(190,70,45,.75)' }, { type: 'storm', lat: -0.42, lon: 2, r: 0.045, col: 'rgba(250,240,225,.5)' }, { type: 'storm', lat: -0.42, lon: 3.2, r: 0.04, col: 'rgba(250,240,225,.5)' }, { type: 'storm', lat: 0.6, lon: 4.5, r: 0.05, col: 'rgba(250,240,225,.45)' }] }
+  ];
+  var planet = null;
+  function spawnPlanet(type) {
+    var def = null, smalls = [];
+    for (var i = 0; i < PLANETS.length; i++) { if (PLANETS[i].type === type) def = PLANETS[i]; if (!PLANETS[i].giant) smalls.push(PLANETS[i]); }
+    if (!def) def = smalls[Math.floor(Math.random() * smalls.length)];
+    planet = def.giant
+      ? { def: def, x: W + def.r * 2.3, y: 250, vx: -0.34, spin: Math.random() * 6.28, ma: 0 }
+      : { def: def, x: W + def.r * 2.4, y: 150 + Math.random() * 70, vx: -(0.28 + Math.random() * 0.14), spin: 0, ma: Math.random() * 6.28 };
+  }
+  // below=true views the ring plane from slightly underneath, so the NEAR
+  // half passes above the planet's centre - that is how a giant's ring gets
+  // to cross in front of the title with the body behind it.
+  function drawRings(px, py, r, back, alpha, below) {
+    x.save(); x.translate(px, py); x.rotate(-0.30);
+    var far = below ? !back : back;
+    x.beginPath(); x.rect(-r * 3, far ? -r * 3 : 0, r * 6, r * 3); x.clip();                   // far half / near half
+    var bands = [[1.32, 1.58, 0.55], [1.62, 1.86, 0.32], [1.9, 2.12, 0.45]];
+    for (var i = 0; i < bands.length; i++) {
+      var o = bands[i][1] * r, n = bands[i][0] * r;
+      x.beginPath();
+      x.ellipse(0, 0, o, o * 0.27, 0, 0, Math.PI * 2);
+      x.ellipse(0, 0, n, n * 0.27, 0, 0, Math.PI * 2, true);
+      x.fillStyle = 'rgba(225,208,170,' + bands[i][2] * (alpha || 1) + ')'; x.fill('evenodd');
+    }
+    x.restore();
+  }
+  function planetFeatures(p) {
+    var d = p.def, r = d.r; if (!d.feat) return;
+    x.save(); x.beginPath(); x.arc(p.x, p.y, r, 0, Math.PI * 2); x.clip();
+    for (var i = 0; i < d.feat.length; i++) {
+      var f = d.feat[i], lon = f.lon + p.spin, cl = Math.cos(lon);
+      if (cl <= 0.04) continue;                                                                 // round the back
+      var fx = p.x + r * Math.cos(f.lat) * Math.sin(lon), fy = p.y + r * Math.sin(f.lat);
+      var rx = f.r * r * cl, ry = f.r * r * (f.type === 'storm' ? 0.6 : 1);
+      if (f.type === 'crater') {
+        x.fillStyle = 'rgba(0,0,0,.38)'; x.beginPath(); x.ellipse(fx, fy, rx, ry, 0, 0, Math.PI * 2); x.fill();
+        x.strokeStyle = 'rgba(255,255,255,.28)'; x.lineWidth = 1;
+        x.beginPath(); x.ellipse(fx - rx * 0.12, fy - ry * 0.12, rx, ry, 0, Math.PI * 1.1, Math.PI * 1.9); x.stroke();   // lit rim
+      } else if (f.type === 'storm') {
+        x.fillStyle = f.col; x.beginPath(); x.ellipse(fx, fy, rx, ry, 0, 0, Math.PI * 2); x.fill();
+        x.fillStyle = 'rgba(255,255,255,.18)'; x.beginPath(); x.ellipse(fx - rx * 0.2, fy - ry * 0.2, rx * 0.5, ry * 0.45, 0, 0, Math.PI * 2); x.fill();
+      } else {                                                                                  // scar
+        x.save(); x.translate(fx, fy); x.rotate(f.ang); x.fillStyle = 'rgba(40,20,10,.5)'; x.fillRect(-rx, -0.8, rx * 2, 1.6); x.restore();
+      }
+    }
+    x.restore();
+  }
+  function drawPlanet() {
+    if (!planet) return;
+    var p = planet, d = p.def, r = d.r; p.x += p.vx; p.spin += d.spin;
+    if (d.rings) drawRings(p.x, p.y, r, true, d.ringA, d.giant);
+    var g = x.createRadialGradient(p.x - r * 0.35, p.y - r * 0.35, r * 0.1, p.x, p.y, r);
+    g.addColorStop(0, d.hi); g.addColorStop(1, d.lo);
+    x.fillStyle = g; x.beginPath(); x.arc(p.x, p.y, r, 0, Math.PI * 2); x.fill();
+    if (d.bands) {
+      x.save(); x.beginPath(); x.arc(p.x, p.y, r, 0, Math.PI * 2); x.clip();
+      for (var b = 0; b < d.bands.length; b++) { x.fillStyle = d.bands[b][2]; x.fillRect(p.x - r, p.y + d.bands[b][0] * r, r * 2, d.bands[b][1] * r); }
+      x.restore();
+    }
+    planetFeatures(p);
+    var s = x.createRadialGradient(p.x + r * 0.55, p.y + r * 0.15, r * 0.25, p.x + r * 0.2, p.y, r * 1.1);
+    s.addColorStop(0, 'rgba(0,0,0,' + (d.giant ? 0.65 : 0.5) + ')'); s.addColorStop(1, 'rgba(0,0,0,0)');   // night side
+    x.fillStyle = s; x.beginPath(); x.arc(p.x, p.y, r, 0, Math.PI * 2); x.fill();
+    if (d.rings && !d.giant) drawRings(p.x, p.y, r, false, d.ringA);                            // small Saturn: near ring here
+    if (d.moon) {
+      p.ma += 0.012;
+      var mx = p.x + Math.cos(p.ma) * r * 1.9, my = p.y + Math.sin(p.ma) * r * 0.5;
+      if (Math.sin(p.ma) > 0 || Math.abs(mx - p.x) > r) { x.fillStyle = '#c8c2b8'; x.beginPath(); x.arc(mx, my, 4, 0, Math.PI * 2); x.fill(); }
+    }
+    if (p.x < -r * 2.4) planet = null;
+  }
+  function drawPlanetFront() {                                                                  // called AFTER the title
+    if (!planet || !planet.def.giant) return;
+    var p = planet, d = p.def;
+    if (d.rings) { x.globalAlpha = 0.85; drawRings(p.x, p.y, d.r, false, d.ringA, true); x.globalAlpha = 1; }
+  }
+
+  // ---- the fleet ----
+  // Saucers (disc, glass dome, little green alien) and cigars are the foo
+  // fighters. Human ships: a stubby fighter and a blocky cruiser. The ISS is
+  // rare. Satellites: Sputnik, Voyager (golden record and all), Hubble.
+  // Asteroids tumble through. Nothing from any film.
+  var craft = [];
+  function spawnCraft(kind, sub) {
+    kind = kind || 'cruiser';
+    var fromRight = kind === 'foo' || kind === 'cigar' ? true : Math.random() < 0.5;
+    var far = Math.random() < 0.5, s = far ? 0.6 + Math.random() * 0.3 : 0.95 + Math.random() * 0.35;
+    var speed = { iss: 0.55, cruiser: 0.85, fighter: 2.4, foo: 1.1, cigar: 1.3, sat: 0.7, rock: 0.45 }[kind] * s;
+    var c = { kind: kind, x: fromRight ? W + 60 : -60, y: 60 + Math.random() * 230,
+              vx: fromRight ? -speed : speed, vy: 0, s: s, a: far ? 0.6 : 1, seed: Math.random() * 6.28,
+              alive: true, dir: fromRight ? -1 : 1 };
+    if (kind === 'sat') c.sub = sub || ['sputnik', 'voyager', 'hubble'][Math.floor(Math.random() * 3)];
+    if (kind === 'rock') {
+      c.pts = []; var n = 7 + Math.floor(Math.random() * 3);
+      for (var i = 0; i < n; i++) { var a = i / n * Math.PI * 2, rr = 5 + Math.random() * 8; c.pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); }
+      c.rot = Math.random() * 6.28; c.rotV = (Math.random() - 0.5) * 0.03; c.vy = (Math.random() - 0.5) * 0.3;
+    }
+    craft.push(c); return c;
+  }
+  function hasCraft(kind) { for (var i = 0; i < craft.length; i++) if (craft[i].kind === kind && craft[i].alive) return true; return false; }
+  function drawISS(c) {
+    x.save(); x.translate(c.x, c.y); x.scale(c.s, c.s); x.globalAlpha = c.a;
+    x.fillStyle = '#b8bcc4'; x.fillRect(-34, -1, 68, 2);
+    var arr = [-31, -19, 19, 31];
+    for (var i = 0; i < arr.length; i++) {
+      x.fillStyle = 'rgba(214,160,60,1)'; x.fillRect(arr[i] - 3.5, -20, 7, 17); x.fillRect(arr[i] - 3.5, 3, 7, 17);
+      x.fillStyle = 'rgba(150,105,35,1)';
+      for (var g = -19; g < 20; g += 3) x.fillRect(arr[i] - 3.5, g, 7, 0.6);
+    }
+    x.fillStyle = '#e8eaee'; x.fillRect(-2, -12, 4, 24); x.fillRect(-7, -4, 14, 5); x.fillRect(-5, 3, 10, 4);
+    x.fillStyle = '#f4f6f8'; x.fillRect(-12, 8, 6, 2); x.fillRect(6, -10, 6, 2);
+    x.fillStyle = 'rgba(255,255,255,' + (0.5 + 0.5 * Math.sin(t / 6)) + ')'; x.fillRect(-1, -1, 2, 2);
+    x.restore();
+  }
+  function drawCruiser(c) {
+    x.save(); x.translate(c.x, c.y); x.scale(c.s * c.dir, c.s); x.globalAlpha = c.a;
+    x.fillStyle = '#8fa2b8'; x.fillRect(-24, -5, 48, 10);
+    x.fillStyle = '#6d7f94'; x.fillRect(-24, 2, 48, 3);
+    x.fillStyle = '#aebdcf'; x.fillRect(-10, -10, 10, 5); x.fillRect(-13, -7, 5, 2);
+    x.fillStyle = '#5d6c80'; x.fillRect(-20, 5, 12, 3); x.fillRect(4, 5, 12, 3);
+    x.fillStyle = '#7e8ea2'; x.beginPath(); x.moveTo(24, -5); x.lineTo(31, 0); x.lineTo(24, 5); x.fill();
+    x.fillStyle = 'rgba(255,230,140,.9)';
+    for (var w = -18; w < 20; w += 4) x.fillRect(w, -2, 1.5, 1.5);
+    var fl = 0.6 + Math.random() * 0.4;
+    x.fillStyle = 'rgba(120,180,255,' + fl + ')'; x.fillRect(-29, -3, 5, 6);
+    x.fillStyle = 'rgba(255,140,60,' + fl * 0.7 + ')'; x.fillRect(-27, -1.5, 3, 3);
+    x.restore();
+  }
+  function drawFighter(c) {
+    x.save(); x.translate(c.x, c.y); x.scale(c.s * c.dir, c.s); x.globalAlpha = c.a;
+    x.fillStyle = '#6b7f96';
+    x.beginPath(); x.moveTo(-6, 0); x.lineTo(-14, -9); x.lineTo(-4, -3); x.lineTo(-4, 3); x.lineTo(-14, 9); x.closePath(); x.fill();
+    x.fillStyle = '#9fb4c8';
+    x.beginPath(); x.moveTo(15, 0); x.lineTo(5, -4); x.lineTo(-10, -5); x.lineTo(-12, 0); x.lineTo(-10, 5); x.lineTo(5, 4); x.closePath(); x.fill();
+    x.fillStyle = '#4fd8ff'; x.fillRect(3, -3, 5, 2);
+    x.fillStyle = 'rgba(255,150,60,' + (0.5 + Math.random() * 0.5) + ')';
+    x.beginPath(); x.moveTo(-12, -2); x.lineTo(-19 - Math.random() * 4, 0); x.lineTo(-12, 2); x.fill();
+    x.restore();
+  }
+  // RETIRED v1.5 (kept, unused): the Tier 2 "ball of light" foo. avid wanted
+  // the classic disc with the dome and the little green guy. See drawSaucer.
+  function drawFoo(c) {
+    var wob = Math.sin(t / 5 + c.seed) * 0.5 + 0.5, r = 5 + wob * 2, hue = 90 + Math.sin(t / 11 + c.seed) * 40;
+    var h = x.createRadialGradient(c.x, c.y, 0, c.x, c.y, r * 3.2);
+    h.addColorStop(0, 'hsla(' + hue + ',100%,92%,' + 0.95 * c.a + ')'); h.addColorStop(1, 'hsla(' + hue + ',100%,60%,0)');
+    x.fillStyle = h; x.beginPath(); x.arc(c.x, c.y, r * 3.2, 0, Math.PI * 2); x.fill();
+  }
+  function drawSaucer(c) {
+    x.save(); x.translate(c.x, c.y); x.scale(c.s, c.s); x.globalAlpha = c.a;
+    x.fillStyle = 'rgba(120,255,160,' + (0.05 + 0.05 * Math.sin(t / 7 + c.seed)) + ')';           // faint beam below
+    x.beginPath(); x.moveTo(-6, 4); x.lineTo(6, 4); x.lineTo(14, 22); x.lineTo(-14, 22); x.fill();
+    x.fillStyle = 'rgba(150,225,255,0.30)'; x.beginPath(); x.ellipse(0, -3, 7.5, 7, 0, Math.PI, 0); x.fill();   // glass dome
+    x.fillStyle = '#7ddc5a'; x.beginPath(); x.ellipse(0, -5, 3, 3.6, 0, 0, Math.PI * 2); x.fill();          // the little guy
+    x.fillStyle = '#0a0a0a'; x.beginPath(); x.ellipse(-1.2, -5.6, 0.9, 1.3, 0.3, 0, Math.PI * 2); x.fill();
+    x.beginPath(); x.ellipse(1.2, -5.6, 0.9, 1.3, -0.3, 0, Math.PI * 2); x.fill();               // big black eyes
+    x.strokeStyle = 'rgba(230,248,255,0.85)'; x.lineWidth = 1; x.beginPath(); x.ellipse(0, -3, 7.5, 7, 0, Math.PI, 0); x.stroke();
+    var g = x.createLinearGradient(0, -3, 0, 5); g.addColorStop(0, '#eef2f8'); g.addColorStop(0.5, '#8a96a8'); g.addColorStop(1, '#4b5566');
+    x.fillStyle = g; x.beginPath(); x.ellipse(0, 0, 16, 5, 0, 0, Math.PI * 2); x.fill();          // the disc
+    x.fillStyle = '#343c4a'; x.beginPath(); x.ellipse(0, 2.5, 9, 2.5, 0, 0, Math.PI); x.fill();   // underside
+    for (var i = 0; i < 6; i++) {                                                               // rim lights, chasing
+      var a = t / 6 + i * Math.PI / 3, lx = Math.cos(a) * 13, ly = Math.sin(a) * 2.2 + 1;
+      x.fillStyle = 'hsla(' + ((t * 4 + i * 60) % 360) + ',100%,65%,' + (0.5 + 0.5 * Math.sin(t / 3 + i)) + ')';
+      x.fillRect(lx - 1, ly - 1, 2, 2);
+    }
+    x.restore();
+  }
+  function drawCigar(c) {
+    x.save(); x.translate(c.x, c.y); x.scale(c.s * c.dir, c.s); x.globalAlpha = c.a; x.rotate(-0.08);
+    var g = x.createLinearGradient(0, -5, 0, 5); g.addColorStop(0, '#f0f3f7'); g.addColorStop(0.5, '#9aa4b4'); g.addColorStop(1, '#4a525f');
+    x.fillStyle = g; x.beginPath(); x.moveTo(-18, -4.5); x.lineTo(18, -4.5); x.arc(18, 0, 4.5, -Math.PI / 2, Math.PI / 2); x.lineTo(-18, 4.5); x.arc(-18, 0, 4.5, Math.PI / 2, -Math.PI / 2); x.closePath(); x.fill();
+    x.fillStyle = 'rgba(255,230,120,.9)';
+    for (var p = -14; p <= 14; p += 7) x.beginPath(), x.arc(p, -0.5, 1.4, 0, Math.PI * 2), x.fill();   // portholes
+    var fl = 0.5 + Math.random() * 0.5;
+    x.fillStyle = 'rgba(255,150,60,' + fl + ')'; x.beginPath(); x.arc(-22, 0, 3, 0, Math.PI * 2); x.fill();
+    x.fillStyle = 'rgba(120,255,180,' + fl * 0.5 + ')'; x.beginPath(); x.arc(23, 0, 2, 0, Math.PI * 2); x.fill();
+    x.restore();
+  }
+  function drawSat(c) {
+    x.save(); x.translate(c.x, c.y); x.scale(c.s * c.dir, c.s); x.globalAlpha = c.a;
+    if (c.sub === 'sputnik') {
+      var g = x.createRadialGradient(-2, -2, 1, 0, 0, 6); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#7a8290');
+      x.fillStyle = g; x.beginPath(); x.arc(0, 0, 6, 0, Math.PI * 2); x.fill();
+      x.strokeStyle = '#c0c6d0'; x.lineWidth = 1;
+      x.beginPath();
+      x.moveTo(-3, -3); x.lineTo(-24, -12); x.moveTo(-3, -1); x.lineTo(-26, -4);
+      x.moveTo(-3, 1); x.lineTo(-26, 4); x.moveTo(-3, 3); x.lineTo(-24, 12); x.stroke();      // the four antennas trail behind
+    } else if (c.sub === 'voyager') {
+      x.strokeStyle = '#b8bec8'; x.lineWidth = 1;
+      x.beginPath(); x.moveTo(4, 0); x.lineTo(34, 6); x.stroke();                               // RTG boom
+      x.fillStyle = '#6d7480'; x.fillRect(32, 3, 5, 6);
+      x.beginPath(); x.moveTo(-2, -2); x.lineTo(-30, -14); x.stroke();                           // magnetometer boom
+      x.fillStyle = '#9aa2ae'; x.fillRect(-4, -4, 8, 8);                                        // bus
+      x.fillStyle = 'rgba(214,170,60,' + (0.7 + 0.3 * Math.sin(t / 4)) + ')'; x.beginPath(); x.arc(-4.5, 2, 2.6, 0, Math.PI * 2); x.fill();   // the golden record
+      var d = x.createRadialGradient(0, -8, 1, 0, -10, 13); d.addColorStop(0, '#f2f5f8'); d.addColorStop(1, '#6f7886');
+      x.fillStyle = d; x.beginPath(); x.ellipse(0, -10, 14, 9, 0, 0, Math.PI * 2); x.fill();     // the big dish
+      x.strokeStyle = '#eef1f5'; x.beginPath(); x.moveTo(0, -10); x.lineTo(0, -19); x.stroke();
+    } else {                                                                                    // hubble
+      var h = x.createLinearGradient(0, -5, 0, 5); h.addColorStop(0, '#f4f6f9'); h.addColorStop(0.5, '#aab2bd'); h.addColorStop(1, '#5f6874');
+      x.fillStyle = h; x.fillRect(-18, -4.5, 36, 9);                                            // the tube
+      x.fillStyle = '#2b3038'; x.fillRect(16, -4.5, 3, 9); x.fillStyle = '#7f8a97'; x.fillRect(18, -6, 2, 5);   // aperture door
+      x.fillStyle = '#1d2c4a'; x.fillRect(-3, -22, 6, 16); x.fillRect(-3, 6, 6, 16);             // solar panels
+      x.fillStyle = 'rgba(120,160,220,.6)';
+      for (var y = -21; y < 22; y += 3) { if (Math.abs(y) < 6) continue; x.fillRect(-3, y, 6, 0.6); }
+    }
+    x.restore();
+  }
+  function drawRock(c) {
+    c.rot += c.rotV;
+    x.save(); x.translate(c.x, c.y); x.scale(c.s, c.s); x.rotate(c.rot); x.globalAlpha = c.a;
+    x.fillStyle = '#6e655a'; x.strokeStyle = '#3d3731'; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(c.pts[0][0], c.pts[0][1]);
+    for (var i = 1; i < c.pts.length; i++) x.lineTo(c.pts[i][0], c.pts[i][1]);
+    x.closePath(); x.fill(); x.stroke();
+    x.fillStyle = 'rgba(0,0,0,.35)'; x.beginPath(); x.arc(2, -1, 2.2, 0, Math.PI * 2); x.fill(); x.beginPath(); x.arc(-3, 3, 1.5, 0, Math.PI * 2); x.fill();
+    x.restore();
+  }
+
+  // ---- world smoke (drifts free; the scroller smoke rides the text) ----
+  function worldSmoke(px, py, n) {
+    for (var i = 0; i < n && smoke.length < 260; i++) {
+      smoke.push({ x: px + (Math.random() - 0.5) * 14, y: py + (Math.random() - 0.5) * 10,
+                   vx: (Math.random() - 0.5) * 0.5, vy: -(0.25 + Math.random() * 0.45),
+                   life: 0, max: 110 + Math.random() * 110, r: 2 + Math.random() * 3, seed: Math.random() * 6.283, world: true });
+    }
+  }
+  function fooPop(c) {                                                                          // a saucer or cigar dies: fire, debris, smoke that hangs
+    for (var i = 0; i < 44; i++) {
+      var a = Math.random() * Math.PI * 2, v = 0.8 + Math.random() * 4.2, fiery = Math.random() < 0.6;
+      parts.push({ x: c.x, y: c.y, px: c.x, py: c.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.6,
+                   life: 0, max: 22 + Math.random() * 30, size: 1 + Math.random() * 2,
+                   hue: fiery ? 18 + Math.random() * 40 : 95 + Math.random() * 40, sat: 100, trail: Math.random() < 0.4 });
+    }
+    worldSmoke(c.x, c.y, 26);
+    flash = 0.7; flashX = c.x; flashY = c.y;
+    c.alive = false;
+    playBuf(sfxBuf('pop', renderPop), trackVol() * POP_MIX * 0.5);
+  }
+
+  // ---- the dogfight: saucers come in and HOVER mid-screen; our fighters
+  //      come in behind them and shoot them down. Explosions and smoke hang
+  //      where they die until the battle is won. Humans win. Every time. ----
+  var fight = null;
+  function spawnFight() {
+    fight = { fighters: [], foos: [], bolts: [], age: 0 };
+    var baseY = 110 + Math.random() * 110;
+    for (var i = 0; i < 3; i++) {
+      var f = spawnCraft(Math.random() < 0.7 ? 'foo' : 'cigar');
+      f.x = W + 30 + i * 50; f.y = baseY + (i - 1) * 42; f.vx = -1.5; f.stopX = 330 + i * 60; f.s = 1; f.a = 1; f.wobble = 1;
+      fight.foos.push(f);
+    }
+    for (var j = 0; j < 2; j++) {
+      var s = spawnCraft('fighter'); s.x = -40 - j * 36; s.y = baseY + (j ? 30 : -30); s.dir = 1; s.vx = 2.0; s.s = 1; s.a = 1;
+      s.cool = 30 + j * 11; fight.fighters.push(s);
+    }
+  }
+  function stepFight() {
+    if (!fight) return;
+    fight.age++;
+    var f, k, alive = [];
+    for (k = 0; k < fight.foos.length; k++) if (fight.foos[k].alive) alive.push(fight.foos[k]);
+    var dodge = Math.max(0, 1 - fight.age / 520);                                              // they dodge less as the fight wears on
+    for (k = 0; k < fight.foos.length; k++) {
+      f = fight.foos[k]; if (!f.alive) continue;
+      if (f.x > f.stopX) f.x += f.vx; else { f.vx = 0; f.x += Math.sin(t / 13 + f.seed) * 0.35; }   // arrive, then hover
+      f.y += Math.sin(t / 9 + f.seed) * 0.9;
+      for (var q2 = 0; q2 < fight.bolts.length; q2++) {                                         // see a bolt coming? juke
+        var bb = fight.bolts[q2];
+        if (bb.x < f.x && f.x - bb.x < 60 && Math.abs(bb.y - f.y) < 14) f.y += (f.y >= bb.y ? 1.6 : -1.6) * dodge;
+      }
+      f.y = Math.max(50, Math.min(300, f.y));
+    }
+    for (k = 0; k < fight.fighters.length; k++) {
+      f = fight.fighters[k];
+      var tgt = null, best = 1e9;
+      for (var q = 0; q < alive.length; q++) { var dd = Math.abs(alive[q].y - f.y) + Math.max(0, alive[q].x - f.x); if (dd < best) { best = dd; tgt = alive[q]; } }
+      if (tgt) {
+        var gap = tgt.x - f.x;
+        f.vx = gap > 140 ? 2.4 : (gap < 70 ? -0.6 : 1.2);                                       // keep a firing distance, never overtake
+        f.vy = Math.max(-1.6, Math.min(1.6, (tgt.y - f.y) * 0.05));
+        if (--f.cool <= 0 && gap > 30 && gap < 240 && Math.abs(tgt.y - f.y) < 16) {
+          f.cool = 26 + Math.random() * 14;
+          fight.bolts.push({ x: f.x + 16, y: f.y, vx: 7, vy: (tgt.y - f.y) * 0.03, life: 0, home: fight.age > 520 });
+          fxZap();
+        }
+      } else { f.vx = Math.min(4.5, f.vx + 0.08); f.vy *= 0.9; }
+    }
+    for (k = fight.bolts.length - 1; k >= 0; k--) {
+      var b = fight.bolts[k]; b.life++;
+      if (b.home && alive.length) { var a0 = alive[0]; b.vy += (a0.y - b.y) * 0.02; }
+      b.x += b.vx; b.y += b.vy;
+      x.strokeStyle = 'rgba(80,240,255,.95)'; x.lineWidth = 1.5;
+      x.beginPath(); x.moveTo(b.x - 10, b.y); x.lineTo(b.x, b.y); x.stroke();
+      var hit = false;
+      for (var m = 0; m < alive.length; m++) {
+        var fo = alive[m];
+        if (fo.alive && Math.abs(fo.x - b.x) < 12 && Math.abs(fo.y - b.y) < 9) { fooPop(fo); hit = true; break; }
+      }
+      if (hit || b.x > W + 20 || b.life > 90) fight.bolts.splice(k, 1);
+    }
+    var allGone = true;
+    for (k = 0; k < fight.fighters.length; k++) if (fight.fighters[k].x < W + 80) allGone = false;
+    if (fight.age > 1500) { for (k = 0; k < fight.foos.length; k++) if (fight.foos[k].alive) fooPop(fight.foos[k]); }   // no draws, ever
+    if (allGone && !alive.length) fight = null;
+  }
+  function killAllFoos() { for (var i = 0; i < craft.length; i++) if ((craft[i].kind === 'foo' || craft[i].kind === 'cigar') && craft[i].alive) fooPop(craft[i]); }
+  function stepFleet() {
+    stepFight();
+    for (var i = craft.length - 1; i >= 0; i--) {
+      var c = craft[i];
+      if (!c.alive) { craft.splice(i, 1); continue; }
+      c.x += c.vx; c.y += c.vy;
+      if ((c.kind === 'foo' || c.kind === 'cigar') && !fight) c.y += Math.sin(t / 7 + c.seed) * 0.7;
+      if (c.x < -140 || c.x > W + 140 || c.y < -60 || c.y > H + 60) { craft.splice(i, 1); continue; }
+      if (c.kind === 'iss') drawISS(c); else if (c.kind === 'cruiser') drawCruiser(c);
+      else if (c.kind === 'fighter') drawFighter(c); else if (c.kind === 'foo') drawSaucer(c);
+      else if (c.kind === 'cigar') drawCigar(c); else if (c.kind === 'sat') drawSat(c);
+      else if (c.kind === 'rock') drawRock(c);
+    }
+    x.globalAlpha = 1;
+  }
+
+  // ---- a laser zap for the dogfight: 45ms falling sine with a little hiss ----
+  function renderZap(sr) {
+    var n = Math.floor(sr * 0.045), out = new Float32Array(n), ph = 0;
+    for (var i = 0; i < n; i++) {
+      var tt = i / sr, f = 2200 * Math.pow(500 / 2200, tt / 0.045);
+      ph += 2 * Math.PI * f / sr;
+      out[i] = (Math.sin(ph) * 0.8 + (Math.random() * 2 - 1) * 0.15) * Math.exp(-tt / 0.02);
+    }
+    return crushAndLimit(out, sr);
+  }
+  var ZAP_MIX = 0.12;
+  function fxZap() { playBuf(sfxBuf('zap', renderZap), trackVol() * ZAP_MIX); }
+
+  // ---- the Morse beacon: the mast blinks A-V-I-D-U-S ----
+  var MORSE = { A: '.-', V: '...-', I: '..', D: '-..', U: '..-', S: '...' };
+  var beaconSeq = (function () {
+    var seq = [], word = 'AVIDUS';
+    for (var i = 0; i < word.length; i++) {
+      var code = MORSE[word[i]];
+      for (var j = 0; j < code.length; j++) { var n = code[j] === '.' ? 1 : 3; for (var k = 0; k < n; k++) seq.push(1); seq.push(0); }
+      seq.push(0, 0);
+    }
+    for (var q = 0; q < 7; q++) seq.push(0);
+    return seq;
+  })();
+  function beaconOn() { return beaconSeq[Math.floor(t / 7) % beaconSeq.length] === 1; }
+
+  // ---- the vectors: a wireframe dodecahedron tumbling behind the title ----
+  var PHI = (1 + Math.sqrt(5)) / 2, dodV = [], dodE = [];
+  (function () {
+    var i, j, s = [-1, 1];
+    for (i = 0; i < 2; i++) for (j = 0; j < 2; j++) for (var k = 0; k < 2; k++) dodV.push([s[i], s[j], s[k]]);
+    for (i = 0; i < 2; i++) for (j = 0; j < 2; j++) {
+      dodV.push([0, s[i] / PHI, s[j] * PHI]); dodV.push([s[i] / PHI, s[j] * PHI, 0]); dodV.push([s[i] * PHI, 0, s[j] / PHI]);
+    }
+    var edge = 2 / PHI;
+    for (i = 0; i < dodV.length; i++) for (j = i + 1; j < dodV.length; j++) {
+      var d = Math.sqrt(Math.pow(dodV[i][0] - dodV[j][0], 2) + Math.pow(dodV[i][1] - dodV[j][1], 2) + Math.pow(dodV[i][2] - dodV[j][2], 2));
+      if (Math.abs(d - edge) < 0.01) dodE.push([i, j]);
+    }
+  })();
+  var dodFlash = 0;
+  function drawDodeca(cx, cy, R) {
+    var mids = (band[3] + band[4]) * 0.5;
+    var a = 0.09 + mids * 0.28 + dodFlash * 0.6; dodFlash *= 0.94;
+    var rx = t * 0.008, ry = t * 0.012, rz = t * 0.003, pts = [];
+    for (var i = 0; i < dodV.length; i++) {
+      var X = dodV[i][0], Y = dodV[i][1], Z = dodV[i][2], c, s, y2, z2, x2;
+      c = Math.cos(rx); s = Math.sin(rx); y2 = Y * c - Z * s; z2 = Y * s + Z * c; Y = y2; Z = z2;
+      c = Math.cos(ry); s = Math.sin(ry); x2 = X * c + Z * s; z2 = -X * s + Z * c; X = x2; Z = z2;
+      c = Math.cos(rz); s = Math.sin(rz); x2 = X * c - Y * s; y2 = X * s + Y * c; X = x2; Y = y2;
+      var pz = 1 / (1 - Z * 0.16) * (R / PHI) * (1 + mids * 0.08);
+      pts.push([cx + X * pz, cy + Y * pz]);
+    }
+    x.strokeStyle = 'hsla(' + ((t * 0.6) % 360) + ',90%,70%,' + a + ')'; x.lineWidth = 1;
+    x.beginPath();
+    for (var e = 0; e < dodE.length; e++) { x.moveTo(pts[dodE[e][0]][0], pts[dodE[e][0]][1]); x.lineTo(pts[dodE[e][1]][0], pts[dodE[e][1]][1]); }
+    x.stroke();
+  }
+
+  // ---- chrome MESSAGES with live reflections ----
+  // Layer one: a classic chrome gradient (dark sky, white-hot horizon,
+  // ground) in each letter. Layer two: the scene drawn so far, flipped
+  // about the title, painted INSIDE the letters - so Saturn, a ship, a
+  // comet passing near the word show up in the chrome.
+  // (The v1.4 letters were meant to be a green gradient but the gradient
+  // was built in the wrong coordinate space and rendered solid white.
+  // Chrome is built in letter-local space, which is why it works.)
+  var snap = document.createElement('canvas'), refl = document.createElement('canvas');
+  snap.width = refl.width = W; snap.height = refl.height = H;
+  var snapCtx = snap.getContext('2d'), reflCtx = refl.getContext('2d');
+  function chromeGradient(ctx2) {
+    var g = ctx2.createLinearGradient(0, -44, 0, 6);
+    g.addColorStop(0, '#f6fbff'); g.addColorStop(0.30, '#7c9fc4'); g.addColorStop(0.47, '#18283c');
+    g.addColorStop(0.50, '#ffffff'); g.addColorStop(0.54, '#3a4d63'); g.addColorStop(0.80, '#a9b6c6'); g.addColorStop(1, '#ffffff');
+    return g;
+  }
+  function drawTitleLetters(ctx2, title, letterX, kscale, mode) {                                 // mode: 'chrome' | 'mask'
+    ctx2.save();
+    ctx2.translate(W / 2, 150); ctx2.scale(kscale, kscale); ctx2.translate(-W / 2, -150);
+    ctx2.font = 'bold 54px "DejaVu Sans", sans-serif'; ctx2.textAlign = 'center';
+    for (var j3 = 0; j3 < title.length; j3++) {
+      var lvl = band[j3], yy = 150 + Math.sin(t / 12 + j3 / 1.6) * 7;
+      ctx2.save();
+      ctx2.translate(letterX[j3].c, yy);
+      ctx2.scale(1 + lvl * 0.22, 1 + lvl * 0.5);
+      ctx2.fillStyle = mode === 'chrome' ? chromeGradient(ctx2) : '#ffffff';
+      ctx2.fillText(title[j3], 0, 0);
+      ctx2.restore();
+    }
+    ctx2.restore();
+  }
+  function reflectTitle(title, letterX, kscale) {
+    reflCtx.clearRect(0, 0, W, H);
+    drawTitleLetters(reflCtx, title, letterX, kscale, 'mask');
+    reflCtx.globalCompositeOperation = 'source-in';
+    reflCtx.save(); reflCtx.translate(0, 300); reflCtx.scale(1, -1); reflCtx.drawImage(snap, 0, 0); reflCtx.restore();
+    reflCtx.globalCompositeOperation = 'source-over';
+    x.globalAlpha = 0.55; x.drawImage(refl, 0, 0); x.globalAlpha = 1;
+  }
+
+  // ---- CRT mode ----
+  var crt = false;
+  function applyCrt() {
+    document.body.classList.toggle('crt', crt);
+    document.getElementById('crtBtn').textContent = 'CRT: ' + (crt ? 'ON' : 'OFF');
+  }
+  function crtOverlay() {
+    x.save();
+    x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.22;
+    x.drawImage(c, 1, 0); x.drawImage(c, -1, 1);
+    x.restore();
+    var v = x.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.78);
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.6)');
+    x.fillStyle = v; x.fillRect(0, 0, W, H);
+    x.fillStyle = 'rgba(0,0,0,.42)';
+    for (var y = 0; y < H; y += 2) x.fillRect(0, y, W, 1);
+    x.fillStyle = 'rgba(255,255,255,' + (0.008 + Math.random() * 0.012) + ')'; x.fillRect(0, 0, W, H);
+  }
+
+  // ---- the secret words: type AVID or CALIX during the intro, as often
+  //      as you like. The message runs once on its own lane and is gone. ----
+  var typed = '', found = { AVID: 0, CALIX: 0 }, bigWord = null, copperFlash = 0, kickHold = 0;
+  var secretLine = null, lastSecret = -9999;
+  // RETIRED v1.5 (kept, unused): Tier 2 spliced the message into the main
+  // scroller, which polluted it for every loop after. avid's call: no.
+  function inject(text) {
+    var x2 = document.createElement('canvas').getContext('2d');
+    x2.font = 'bold 17px "DejaVu Sans Mono", monospace';
+    var cw = x2.measureText('M').width, k = Math.max(0, Math.min(SCROLL.length, Math.ceil((W + cw * 2 - sx) / cw)));
+    SCROLL = SCROLL.slice(0, k) + text + SCROLL.slice(k);
+    for (var i = 0; i < triggers.length; i++) if (triggers[i].start >= k) { triggers[i].start += text.length; triggers[i].end += text.length; triggers[i].center += text.length; }
+  }
+  function broadcast(text) { secretLine = { text: '>> ' + text, x: W }; }
+  function drawSecretLane() {
+    if (!secretLine) return;
+    x.font = 'bold 14px "DejaVu Sans Mono", monospace'; x.textAlign = 'left';
+    var w = x.measureText(secretLine.text).width;
+    x.fillStyle = 'rgba(0,0,0,.8)'; x.fillText(secretLine.text, secretLine.x + 1, 259);
+    x.fillStyle = 'hsl(190,100%,' + (62 + 10 * Math.sin(t / 4)) + '%)'; x.fillText(secretLine.text, secretLine.x, 258);
+    secretLine.x -= 3.0;
+    if (secretLine.x < -w) secretLine = null;
+  }
+  function miniBurst(px, py) {
+    for (var i = 0; i < 14; i++) {
+      var a = Math.random() * Math.PI * 2, v = 0.6 + Math.random() * 2.6;
+      parts.push({ x: px, y: py, px: px, py: py, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.5,
+                   life: 0, max: 24 + Math.random() * 26, size: 1 + Math.random() * 1.8,
+                   hue: Math.random() < 0.7 ? 18 + Math.random() * 40 : Math.random() * 360, sat: 100, trail: Math.random() < 0.3 });
+    }
+  }
+  function secretAvid() {
+    if (t - lastSecret < 150) return; lastSecret = t; found.AVID++;
+    fxPop();
+    for (var i = 0; i < 28; i++) { var st = stars[Math.floor(Math.random() * stars.length)]; miniBurst(st.x, st.y); }
+    copperFlash = 1; bigWord = { text: 'AVID', life: 80, max: 80 };
+    broadcast('AVID WAS HERE! YOU TYPED THE SYSOP WORD - RESPECT, HAX0R. THE BOARD IS YOURS. PUSH UP YA LIGHTA!');
+  }
+  function secretCalix() {
+    if (t - lastSecret < 150) return; lastSecret = t; found.CALIX++;
+    fxPing();
+    for (var i = 0; i < 8; i++) rings.push({ x: W / 2, y: H / 2, r: 6 + i * 6, max: 150, life: -i * 6, vx: 0 });
+    kickHold = 80; dodFlash = 1; killAllFoos();
+    bigWord = { text: 'CALIX', life: 80, max: 80 };
+    broadcast('TRANSMISSION RECEIVED. YOU FOUND MY WORD, FRIEND. THE ROBOT SEES YOU. KEEP BUILDING WITH ALL YOUR HEART - COLOSSIANS 3:23');
+  }
+  function drawBigWord() {
+    if (!bigWord) return;
+    var f = bigWord.life / bigWord.max; bigWord.life--;
+    if (bigWord.life <= 0) { bigWord = null; return; }
+    x.save();
+    x.font = 'bold 72px "DejaVu Sans", sans-serif'; x.textAlign = 'center';
+    x.translate(W / 2, H / 2 + 24); x.scale(1 + (1 - f) * 0.6, 1 + (1 - f) * 0.6);
+    x.fillStyle = 'hsla(' + ((t * 9) % 360) + ',100%,70%,' + f + ')';
+    x.fillText(bigWord.text, 0, 0);
+    x.restore(); x.textAlign = 'left';
+  }
+
+  // ---- the scheduler: the odd one, not all. Cooldowns keep the ISS rare
+  //      (two or three a track, one at a time) and giants rarer still. ----
+  var nextEvent = 200, cool = { iss: 0, sat: 0, giant: 1200, planet: 0, fight: 400 };
+  function schedule() {
+    if (t < nextEvent) return;
+    nextEvent = t + 240 + Math.random() * 380;
+    var r = Math.random();
+    if (!planet && t > cool.giant && r < 0.10) { spawnPlanet(Math.random() < 0.5 ? 'saturnGiant' : 'jupiter'); cool.giant = t + 7000; cool.planet = t + 3000; }
+    else if (!planet && t > cool.planet && r < 0.30) { spawnPlanet(); cool.planet = t + 1800; }
+    else if (!fight && t > cool.fight && r < 0.45) { spawnFight(); cool.fight = t + 3200; }
+    else if (!hasCraft('iss') && t > cool.iss && r < 0.55) { spawnCraft('iss'); cool.iss = t + 4200; }
+    else if (!hasCraft('sat') && t > cool.sat && r < 0.68) { spawnCraft('sat'); cool.sat = t + 1500; }
+    else if (craft.length < 3 && r < 0.88) spawnCraft(['cruiser', 'fighter', 'rock', 'foo', 'cigar', 'rock'][Math.floor(Math.random() * 6)]);
+    else if (!comet) spawnComet();
   }
 
   // ---- audio: element + analyser with REAL sub-bass and auto-gain ----
@@ -145,16 +845,26 @@
   var bmax = [.06, .06, .06, .06, .06, .06, .06, .06];
   var bassN = 0, energyN = 0, kick = 0, bassAvg = 0.0001, emax = .06;
 
+  // v1.5: the context is shared with the SFX, so "wired" (not "actx exists")
+  // is the guard - otherwise a POP before the music starts would create the
+  // context first and the analyser would never get built.
+  var wired = false;
+  function ensureCtx() {
+    if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; } }
+    if (actx && actx.state === 'suspended') actx.resume();
+    return actx;
+  }
   function wireAudio() {
-    if (actx) return;
+    if (wired) return;
     try {
-      actx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!ensureCtx()) return;
       var src = actx.createMediaElementSource(tune);
       analyser = actx.createAnalyser();
       analyser.fftSize = 1024;
       analyser.smoothingTimeConstant = 0.72;
       src.connect(analyser); analyser.connect(actx.destination);
       fdata = new Uint8Array(analyser.frequencyBinCount);
+      wired = true;
     } catch (e) { analyser = null; }
   }
 
@@ -183,6 +893,95 @@
     kick *= 0.86;
   }
 
+  // ---- v1.5 original SFX: POP (Lemmings-style) + TRANSMIT ping ----
+  // ---- v1.5 original SFX renderers (pure functions of sample rate) ----
+  // Nothing sampled. Each returns a mono Float32Array, peak-normalised,
+  // lightly 8-bit crushed and band-limited so it sits with the oh-no's grit.
+  function crushAndLimit(out, sr) {
+    var peak = 0;
+    for (var i = 0; i < out.length; i++) peak = Math.max(peak, Math.abs(out[i]));
+    var g = peak > 0 ? 0.9 / peak : 1;
+    var lp = 0, a = Math.exp(-2 * Math.PI * 4200 / sr);        // one-pole lowpass ~4.2kHz
+    for (var j = 0; j < out.length; j++) {
+      var v = out[j] * g;
+      v = Math.round(v * 127) / 127;                            // 8-bit steps
+      lp = a * lp + (1 - a) * v;
+      out[j] = lp;
+    }
+    var fade = Math.floor(sr * 0.015);                          // land on zero: no click at the end
+    for (var k = 0; k < fade && k < out.length; k++) out[out.length - 1 - k] *= k / fade;
+    return out;
+  }
+
+  // Lemmings-style POP: a bright skin-split click, then a fast falling
+  // "bloop" (900Hz -> 110Hz in 70ms). Total ~150ms. A pop, not a boom.
+  function renderPop(sr) {
+    var n = Math.floor(sr * 0.15), out = new Float32Array(n), ph = 0;
+    for (var i = 0; i < n; i++) {
+      var tt = i / sr;
+      // click: 12ms of noise with a 3ms decay
+      var click = tt < 0.012 ? (Math.random() * 2 - 1) * Math.exp(-tt / 0.003) * 0.9 : 0;
+      // bloop: exponential sweep, 1ms attack, 35ms decay
+      var f = 900 * Math.pow(110 / 900, Math.min(1, tt / 0.07));
+      ph += 2 * Math.PI * f / sr;
+      var env = Math.min(1, tt / 0.001) * Math.exp(-tt / 0.035);
+      var bloop = (Math.sin(ph) + 0.35 * Math.sin(2 * ph)) * env;
+      out[i] = click + bloop;
+    }
+    return crushAndLimit(out, sr);
+  }
+
+  // TRANSMIT ping: a sonar-style chirp (1400Hz -> 950Hz in 60ms) that rings
+  // out with a 14Hz tremolo "buzz", then two fading echoes. ~1.1s.
+  function renderPing(sr) {
+    var n = Math.floor(sr * 1.1), out = new Float32Array(n);
+    var hits = [[0, 1], [0.28, 0.45], [0.56, 0.2]];
+    for (var h = 0; h < hits.length; h++) {
+      var t0 = hits[h][0], amp = hits[h][1], ph = 0, start = Math.floor(t0 * sr);
+      for (var i = start; i < n; i++) {
+        var tt = (i - start) / sr;
+        var f = 1400 * Math.pow(950 / 1400, Math.min(1, tt / 0.06));
+        ph += 2 * Math.PI * f / sr;
+        var env = Math.min(1, tt / 0.004) * Math.exp(-tt / 0.18);
+        var trem = 1 - 0.5 * (0.5 + 0.5 * Math.sin(2 * Math.PI * 14 * tt));
+        out[i] += (Math.sin(ph) + 0.25 * Math.sin(3 * ph)) * env * trem * amp;
+      }
+    }
+    return crushAndLimit(out, sr);
+  }
+
+  // buffers are rendered once at the context's own sample rate
+  var sfx = { pop: null, ping: null };
+  function sfxBuf(name, render) {
+    if (!ensureCtx()) return null;
+    if (!sfx[name]) {
+      var data = render(actx.sampleRate);
+      var b = actx.createBuffer(1, data.length, actx.sampleRate);
+      b.getChannelData(0).set(data);
+      sfx[name] = b;
+    }
+    return sfx[name];
+  }
+  function playBuf(buf, vol) {
+    if (!buf || !ensureCtx()) return;
+    try {
+      var s = actx.createBufferSource(), g = actx.createGain();
+      s.buffer = buf; g.gain.value = Math.max(0, Math.min(1, vol));
+      s.connect(g); g.connect(actx.destination); s.start();
+    } catch (e) {}
+  }
+  function trackVol() { return Math.max(0, Math.min(1, cfg.volume / 100)); }
+  function fxOhNo() {
+    try { ohno.volume = trackVol() * OHNO_MIX; ohno.currentTime = 0;
+          var p = ohno.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+  }
+  function fxPop()  { playBuf(sfxBuf('pop', renderPop), trackVol() * POP_MIX); }
+  function fxPing() { playBuf(sfxBuf('ping', renderPing), trackVol() * PING_MIX); }
+
+  // ---- RETIRED v1.5 (kept, unused - dead code, avid's call to delete) ----
+  // The v1.4 synthesized "uh-oh...BOOM" fell flat: a Charlie Brown
+  // sound and a boom where a POP belonged. Superseded by the oh-no file
+  // + fxPop above. Nothing calls this any more.
   // ---- tiny synthesized FX: an original "uh-oh" homage + boom ----
   // Nothing sampled, nothing ripped — two square-wave blips falling a
   // minor third, then a filtered noise boom with a sub thump underneath.
@@ -234,12 +1033,14 @@
 
   // ---- drawing ----
   // copper bars now breathe AND fatten with the sub
+  // v1.5: a wider swing (0.45x..2.35x), a snap on every kick, and a brighter
+  // core when the bass leans in - avid wanted them to FEEL the bassline.
   function copper(y0, baseH, hue) {
-    var h = Math.round(baseH * (0.55 + bassN * 1.15));
+    var h = Math.round(baseH * (0.45 + bassN * 1.9 + kick * 0.5 + copperFlash * 1.2));
     var yy = y0 - (h - baseH) / 2;
     for (var i = 0; i < h; i++) {
       var f = Math.sin((i / h) * Math.PI);
-      x.fillStyle = 'hsl(' + hue + ',100%,' + Math.min(64, 10 + f * (30 + bassN * 42)) + '%)';
+      x.fillStyle = 'hsl(' + hue + ',100%,' + Math.min(70, 8 + f * (26 + bassN * 58 + kick * 10) + copperFlash * 40) + '%)';
       x.fillRect(0, yy + i, W, 1);
     }
   }
@@ -262,18 +1063,36 @@
     readAudio();
     x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
 
+    if (kickHold > 0) { kick = 1; kickHold--; }          // v1.5: a forced hyperspace run (CALIX)
+    copperFlash *= 0.92;
+    schedule();
+    drawNebulae();
+
     // starfield: hits warp speed with the track
-    var speed = 1 + energyN * 3.2;
+    // v1.5: and JOLTS into hyperspace on every kick - stars streak for a
+    // dozen frames, the ship stuttering into warp with the sub.
+    var speed = 1 + energyN * 3.2 + kick * 7;
     for (var i = 0; i < stars.length; i++) {
       var st = stars[i];
       st.x -= st.s * speed;
       if (st.x < 0) { st.x = W; st.y = Math.random() * H; }
       x.fillStyle = 'rgba(255,255,255,' + (0.25 + st.s / 3) + ')';
       x.fillRect(st.x, st.y, st.s > 1.4 ? 2 : 1, st.s > 1.4 ? 2 : 1);
+      if (kick > 0.12) {
+        x.strokeStyle = 'rgba(255,255,255,' + ((0.2 + st.s / 3) * kick) + ')';
+        x.lineWidth = st.s > 1.4 ? 2 : 1;
+        x.beginPath(); x.moveTo(st.x, st.y); x.lineTo(st.x + st.s * kick * 26, st.y); x.stroke();
+      }
     }
+    drawComet();
+    drawPlanet();
+    drawDodeca(W / 2, 122, 78);
+    stepFleet();
 
     copper(30 + Math.sin(t / 26) * 10, 26, 28);
     copper(H - 88 + Math.sin(t / 22 + 1) * 10, 22, 150);
+
+    snapCtx.clearRect(0, 0, W, H); snapCtx.drawImage(c, 0, 0);   // v1.5: the scene so far, for the chrome reflections
 
     // ---- MESSAGES as a living 8-band EQ ----
     // M carries the sub, the final S rings the hats. Each letter has an
@@ -296,18 +1115,15 @@
       ledColumn(letterX[j2].c, 176, letterX[j2].w * 0.72, 92, band[j2]);
     }
     // then the letters, each scaled by its own band
-    for (var j3 = 0; j3 < 8; j3++) {
-      var lvl = band[j3];
-      var yy = 150 + Math.sin(t / 12 + j3 / 1.6) * 7;
-      var g = x.createLinearGradient(0, yy - 40, 0, yy + 10);
-      g.addColorStop(0, '#eaf6ff'); g.addColorStop(.45, '#5ad07f');
-      g.addColorStop(.55, '#0f3b22'); g.addColorStop(1, '#9fe8b8');
-      x.save();
-      x.translate(letterX[j3].c, yy);
-      x.scale(1 + lvl * 0.22, 1 + lvl * 0.5);
-      x.fillStyle = g;
-      x.fillText(title[j3], 0, 0);
-      x.restore();
+    // v1.5: chrome, with the scene reflected in it (see drawTitleLetters).
+    // v1.4's inline green gradient is retired - it never rendered (wrong
+    // coordinate space, came out solid white).
+    x.restore();                                   // leave the kscale transform; the helpers apply their own
+    drawTitleLetters(x, title, letterX, kscale, 'chrome');
+    reflectTitle(title, letterX, kscale);
+    x.save();                                      // re-enter it for the rest of the title block
+    x.translate(W / 2, 150); x.scale(kscale, kscale); x.translate(-W / 2, -150);
+    for (var j3 = 0; j3 < 0; j3++) {
     }
     x.restore();
 
@@ -320,41 +1136,129 @@
     x.fillStyle = 'rgba(180,240,200,.75)';
     x.fillText('a v i d u s S o f t w a r e   ///   avid & calix', W / 2, 234);
 
-    // ---- scroller: bounce, colour cycle, and the SHOOTS build-up ----
+    drawPlanetFront();                             // v1.5: a giant's near ring crosses IN FRONT of the title
+
+    // ---- scroller: bounce, colour cycle, and the SHOOTS / TRANSMITS builds ----
     x.font = 'bold 17px "DejaVu Sans Mono", monospace';
     x.textAlign = 'left';
     var chW = x.measureText('M').width;
+    var nowMs = performance.now();
 
-    // per-trigger: vibration ramps as the word approaches centre, fires at centre
-    var jit = {};
+    // v1.5 sequence engine. avid's spec, in order:
+    //   SHOOTS - the instant the S shows at the right edge the word vibrates,
+    //   faster and faster, swelling like a lemming's head, until the S hits
+    //   dead centre: "oh no!" plays, then POP, the word explodes, flaming
+    //   debris flies, and for the rest of its journey a smouldering, smoke-
+    //   filled hole rides where the word was - fully gone by the far side.
+    //   TRANSMITS - a radio mast grows up behind the word, full height by
+    //   centre, then fires the beacon rings + transmit ping and keeps pulsing.
+    var jit = {}, hide = {}, swellOf = {}, swellCx = {};
     for (var ti = 0; ti < triggers.length; ti++) {
       var tr = triggers[ti];
-      var wcx = sx + tr.center * chW;
-      if (tr.effect === 'burst' && !tr.fired && wcx < W && wcx > W / 2) {
-        var d = (wcx - W / 2) / (W / 2);           // 1 at right edge → 0 at centre
-        var inten = Math.pow(1 - d, 2) * 3.6;      // shakes harder as the boom nears
-        for (var ci = tr.start; ci < tr.end; ci++) jit[ci] = inten;
-      }
-      if (!tr.fired && Math.abs(wcx - W / 2) < chW * 0.6) {
-        tr.fired = true;
-        var ey = H - 30 + Math.sin((wcx / 42) + t / 9) * 11 - 6;
-        if (tr.effect === 'burst') megaBurst(wcx, ey);
-        else ringSet(wcx, ey);
+      var sX = sx + tr.start * chW + chW / 2;                // centre of the first letter
+      var wcx = sx + tr.center * chW;                        // centre of the word
+      var dS = Math.max(0, Math.min(1, (sX - W / 2) / (W / 2)));    // 1 at right edge -> 0 at centre (the S)
+      var dW = Math.max(0, Math.min(1, (wcx - W / 2) / (W / 2)));   // same, for the word's centre
+
+      if (tr.effect === 'burst') {
+        if (tr.phase === 'idle' && sX < W + chW / 2) tr.phase = 'armed';
+        var sVis = wcx + (sX - wcx) * tr.swell;              // where the S actually IS once swollen
+        if (tr.phase === 'armed' && sVis <= W / 2) {         // the S hits dead centre
+          tr.phase = 'ohno'; tr.t0 = nowMs; fxOhNo();
+        }
+        if (tr.phase === 'ohno' && nowMs - tr.t0 >= OHNO_MS) {   // ...then POP
+          tr.phase = 'popped'; tr.fired = true; tr.popX = Math.max(1, wcx);
+          tr.hx = 0; tr.hy = 0;
+          megaBurst(wcx, waveY(wcx) - 6); fxPop();
+        }
+        if (tr.phase === 'armed' || tr.phase === 'ohno') {
+          var build = 1 - dS;                                    // 0 -> 1 across the right half
+          var extra = tr.phase === 'ohno' ? Math.min(1, (nowMs - tr.t0) / OHNO_MS) : 0;
+          var inten = Math.pow(build, 2) * 3.6 + extra * 2.6;    // shakes harder, then harder still
+          var sw = 1 + build * 0.42 + extra * 0.48;              // head inflating: 1.0 -> 1.9
+          for (var ci = tr.start; ci < tr.end; ci++) { jit[ci] = inten; swellOf[ci] = sw; swellCx[ci] = wcx; }
+          tr.swell = sw;
+        }
+        if (tr.phase === 'popped') {
+          for (var hi = tr.start; hi < tr.end; hi++) hide[hi] = true;
+          smoulder(tr, wcx);
+        }
+      } else {                                                 // 'rings' -> the mast
+        if (tr.phase === 'idle' && wcx < W + chW * 4) tr.phase = 'rising';
+        if (tr.phase !== 'idle') {
+          tr.towerX = wcx; tr.towerBase = waveY(wcx) + 6;
+          tr.towerH = (tr.phase === 'rising' ? 1 - dW : 1) * TOWER_H;
+          var tip = tr.towerBase - tr.towerH - 12;
+          if (tr.phase === 'rising' && wcx <= W / 2) {        // full height at centre: transmit
+            tr.phase = 'live'; tr.fired = true; tr.lastPulse = t;
+            ringSet(wcx, tip, true); fxPing();
+          }
+          if (tr.phase === 'live' && t - tr.lastPulse > 95) { tr.lastPulse = t; ringSet(wcx, tip, true); }
+          drawTower(tr);                                       // drawn now = behind the letters
+        }
       }
     }
 
     for (var k = 0; k < SCROLL.length; k++) {
+      if (hide[k]) continue;                                   // the hole where SHOOTS was
       var px = sx + k * chW;
-      if (px < -chW || px > W) continue;
+      if (px < -chW * 2 || px > W + chW) continue;
       var jx = jit[k] ? (Math.random() - 0.5) * 2 * jit[k] : 0;
       var jy = jit[k] ? (Math.random() - 0.5) * 2 * jit[k] : 0;
       x.fillStyle = 'hsl(' + ((t * 2 + k * 7) % 360) + ',90%,68%)';
-      x.fillText(SCROLL[k], px + jx, H - 30 + Math.sin((px / 42) + t / 9) * 11 + jy);
+      if (swellOf[k] && swellOf[k] > 1.001) {
+        // inflate the whole word about a pivot just under its baseline, so it
+        // bloats upward and outward like a head about to go
+        var pcx = swellCx[k], pcy = waveY(pcx) + 3;
+        x.save();
+        x.translate(pcx, pcy); x.scale(swellOf[k], swellOf[k]); x.translate(-pcx, -pcy);
+        x.fillText(SCROLL[k], px + jx, waveY(px) + jy);
+        x.restore();
+      } else {
+        x.fillText(SCROLL[k], px + jx, waveY(px) + jy);
+      }
     }
-    sx -= 2.4;
+    sx -= SCROLL_SPEED;
     if (sx < -SCROLL.length * chW) {
       sx = W;
-      for (var tr2 = 0; tr2 < triggers.length; tr2++) triggers[tr2].fired = false;
+      for (var tr2 = 0; tr2 < triggers.length; tr2++) {
+        triggers[tr2].fired = false; triggers[tr2].phase = 'idle';
+        triggers[tr2].towerH = 0; triggers[tr2].remain = 0; triggers[tr2].swell = 1;
+      }
+    }
+
+    // ---- v1.5 the smouldering hole: ember glow + rising smoke ----
+    for (var ti2 = 0; ti2 < triggers.length; ti2++) {
+      var th = triggers[ti2];
+      if (th.effect !== 'burst' || th.phase !== 'popped' || th.remain <= 0) continue;
+      var gl = th.remain * (0.35 + Math.random() * 0.3);
+      var eg = x.createRadialGradient(th.hx, th.hy, 0, th.hx, th.hy, 16);
+      eg.addColorStop(0, 'rgba(255,120,30,' + gl + ')');
+      eg.addColorStop(0.5, 'rgba(200,50,10,' + gl * 0.5 + ')');
+      eg.addColorStop(1, 'rgba(120,20,0,0)');
+      x.fillStyle = eg;
+      x.beginPath(); x.arc(th.hx, th.hy, 16, 0, Math.PI * 2); x.fill();
+      for (var em = 0; em < 5; em++) {                         // charred remnants, flickering
+        var ex = th.hx - 12 + em * 6, ey2 = th.hy + 2 + Math.sin(em * 2.1) * 3;
+        x.fillStyle = 'rgba(255,' + (60 + Math.floor(Math.random() * 90)) + ',20,' + th.remain * (0.4 + Math.random() * 0.6) + ')';
+        x.fillRect(ex, ey2, 2, 2);
+      }
+    }
+    for (var sm = smoke.length - 1; sm >= 0; sm--) {
+      var sp = smoke[sm];
+      sp.life++;
+      if (sp.life > sp.max) { smoke.splice(sm, 1); continue; }
+      sp.vy += (sp.world ? 0 : waveVel(sp.x) * 0.10) - 0.004;  // the wave heaves it (scroller smoke only); a little buoyancy
+      sp.vx += Math.sin(t / 7 + sp.seed) * 0.03;               // turbulence
+      sp.vy *= 0.985; sp.vx *= 0.995;
+      sp.x += sp.vx; sp.y += sp.vy;
+      sp.r += 0.07;
+      var sa = (1 - sp.life / sp.max) * 0.42;
+      var sg = x.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, sp.r);
+      sg.addColorStop(0, 'rgba(185,185,195,' + sa + ')');
+      sg.addColorStop(1, 'rgba(120,120,130,0)');
+      x.fillStyle = sg;
+      x.beginPath(); x.arc(sp.x, sp.y, sp.r, 0, Math.PI * 2); x.fill();
     }
 
     // core flash of the explosion
@@ -392,6 +1296,7 @@
     for (var r = rings.length - 1; r >= 0; r--) {
       var g2 = rings[r];
       g2.life++;
+      g2.x += g2.vx || 0;
       if (g2.life < 0) continue;
       if (g2.life > g2.max) { rings.splice(r, 1); continue; }
       var rr = g2.r + g2.life * 1.35;
@@ -404,9 +1309,15 @@
       x.beginPath(); x.arc(g2.x, g2.y, rr * 0.86, 0, Math.PI * 2); x.stroke();
     }
 
-    // scanlines over everything
-    x.fillStyle = 'rgba(0,0,0,.30)';
-    for (var y = 0; y < H; y += 3) x.fillRect(0, y, W, 1);
+    drawBigWord();                                          // v1.5: a found secret word, flashed big
+    drawSecretLane();                                       // v1.5: the secret message on its own lane, once
+
+    // scanlines over everything (v1.5: CRT mode swaps in the full tube look)
+    if (crt) crtOverlay();
+    else {
+      x.fillStyle = 'rgba(0,0,0,.30)';
+      for (var y = 0; y < H; y += 3) x.fillRect(0, y, W, 1);
+    }
 
     requestAnimationFrame(frame);
   }
@@ -423,35 +1334,80 @@
   document.getElementById('fsBtn').addEventListener('click', function () {
     window.cracktroAPI.toggleFullscreen();
   });
+  document.getElementById('crtBtn').addEventListener('click', function () {
+    crt = !crt; applyCrt(); window.cracktroAPI.set('cracktroCrt', crt);
+  });
   document.getElementById('everyLaunch').addEventListener('change', function (e) {
     window.cracktroAPI.set('cracktroEveryLaunch', !!e.target.checked);
   });
 
   window.addEventListener('keydown', function (e) {
+    if (/^[a-zA-Z]$/.test(e.key)) {                        // v1.5: the secret words
+      typed = (typed + e.key.toUpperCase()).slice(-8);
+      if (typed.slice(-4) === 'AVID') secretAvid();
+      else if (typed.slice(-5) === 'CALIX') secretCalix();
+    }
     if (e.key === 'Escape' || e.key === 'Enter') window.cracktroAPI.close();
     else if (e.key === ' ') {
       e.preventDefault();
       cfg.music = !cfg.music; applyMusic(); window.cracktroAPI.set('cracktroMusic', cfg.music);
     }
     else if (e.key === 'f' || e.key === 'F') window.cracktroAPI.toggleFullscreen();
+    else if (e.key === 't' || e.key === 'T') { crt = !crt; applyCrt(); window.cracktroAPI.set('cracktroCrt', crt); }
   });
 
   // diagnostic handle for tests: state, live audio bands, forced effects
   window.__ck = {
     state: function () {
       return {
-        v: 2,
+        v: 3,
         scrollLen: SCROLL.length,
         triggers: triggers.length,
+        phases: triggers.map(function (tr) { return tr.effect + ':' + tr.phase; }),
         musicDuration: tune.duration || 0,
         musicPlaying: !cfg.music ? 'off' : (tune.paused ? 'paused' : 'playing'),
+        ohnoDuration: ohno.duration || 0,          // > 0 proves the wav loaded
+        ohnoReady: ohno.readyState,                // 4 = enough data to play through
+        sfxPop: sfx.pop ? sfx.pop.length : 0,      // rendered buffer lengths (0 until first use)
+        sfxPing: sfx.ping ? sfx.ping.length : 0,
+        sfxZap: sfx.zap ? sfx.zap.length : 0, secretLine: !!secretLine,
+        mix: { ohno: OHNO_MIX, pop: POP_MIX, ping: PING_MIX },
+        smoke: smoke.length, parts: parts.length, rings: rings.length,
+        planet: planet ? planet.def.type : null, craft: craft.map(function (k) { return k.kind; }),
+        fight: !!fight, comet: !!comet, found: found, crt: crt, typedLen: typed.length,
         bassN: Number(bassN.toFixed(3)),
         energyN: Number(energyN.toFixed(3)),
         band: band.map(function (b) { return Number(b.toFixed(2)); })
       };
     },
     burst: function () { megaBurst(W / 2, H - 60); },
-    rings: function () { ringSet(W / 2, H - 60); }
+    rings: function () { ringSet(W / 2, H - 60); },
+    // v1.5: park the scroller so a word is about to enter from the right,
+    // then let the real sequence run. Returns false if the word isn't there.
+    seek: function (word) {
+      var x2 = document.createElement('canvas').getContext('2d');
+      x2.font = 'bold 17px "DejaVu Sans Mono", monospace';
+      var cw = x2.measureText('M').width, idx = SCROLL.indexOf(word);
+      if (idx < 0) return false;
+      sx = W - idx * cw + cw * 0.5;
+      for (var i = 0; i < triggers.length; i++) {
+        triggers[i].fired = false; triggers[i].phase = 'idle';
+        triggers[i].towerH = 0; triggers[i].remain = 0;
+      }
+      return true;
+    },
+    ohno: fxOhNo, pop: fxPop, ping: fxPing,
+    spawn: function (kind) {                                 // 'planet','saturn','rust','ice','ochre','fight','comet','iss','cruiser','fighter','foo'
+      if (kind === 'planet') spawnPlanet(); else if (['saturn', 'rust', 'ice', 'ochre'].indexOf(kind) >= 0) spawnPlanet(kind);
+      else if (kind === 'saturnGiant' || kind === 'jupiter') spawnPlanet(kind);
+      else if (kind === 'fight') spawnFight(); else if (kind === 'comet') spawnComet();
+      else if (kind === 'sputnik' || kind === 'voyager' || kind === 'hubble') spawnCraft('sat', kind);
+      else spawnCraft(kind);
+      return true;
+    },
+    secret: function (w) { if (w === 'AVID') secretAvid(); else if (w === 'CALIX') secretCalix(); return found; },
+    crt: function (v) { crt = !!v; applyCrt(); return crt; },
+    renderPop: renderPop, renderPing: renderPing, renderZap: renderZap
   };
 
   // ---- boot ----
@@ -459,6 +1415,7 @@
     cfg = Object.assign(cfg, info || {});
     document.getElementById('vol').value = cfg.volume;
     document.getElementById('everyLaunch').checked = !!cfg.everyLaunch;
+    crt = !!cfg.crt; applyCrt();
     buildScroll();
     applyMusic();
   }).catch(function () { applyMusic(); });

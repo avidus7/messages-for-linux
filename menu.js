@@ -277,6 +277,7 @@ function buildMenu(ctx) {
         { label: 'Play Intro Again', click: () => a.showCracktro() },
         { label: 'Play Intro on Every Launch', type: 'checkbox', checked: s.cracktroEveryLaunch,
           click: (mi) => a.setCracktroEveryLaunch(mi.checked) },
+        { label: 'Edit Intro Scroller Text…', click: () => a.editCracktroTxt() },
         { type: 'separator' },
         { label: 'Toggle DevTools', accelerator: 'F12', click: () => a.toggleDevTools() },
         { label: 'Toggle DevTools (alt)', accelerator: 'CmdOrCtrl+Shift+I', visible: false, acceleratorWorksWhenHidden: true, click: () => a.toggleDevTools() },
